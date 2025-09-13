@@ -765,7 +765,7 @@ try {
     if (window.initDashboard && Array.isArray(data)) {
       window.initDashboard(data);
     }
-  } catch (err) {
+catch (err) {
     console.error('[TSV] Error loader:', err);
     $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
   }
@@ -1437,6 +1437,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
