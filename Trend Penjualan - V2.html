@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard Penjualan — Mingguan</title>
+
+  <!-- Charts & Excel Parser -->
+   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Multi-select dengan search -->
+ <link href="https://cdn.jsdelivr.net/npm/choicesces.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+  <!-- Font & Styles -->
+<link href="https://fonts.googleapis.comink" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=00;600;700&display=swap"/>
+
+<style>
+  :root {
+    --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb;
+    --border:#1f2937; --plotBg:#0b1220; --grid:#1f2937; --accent:#3b82f6;
+  }
+  :root[data-theme="light"] {
+    --bg:#f8fafc; --card:#ffffff; --muted:#64748b; --text:#0f172a;
+    --border:#e2e8f0; --plotBg:#ffffff; --grid:#e2e8f0; --accent:#2563eb;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    font-family:'Inter', system-ui, -apple-system, Segoe UI, Roboto;
+    background:var(--bg);
+    color:var(--text);
+  }
+  header {
+    padding:12px 14px;
+    border-bottom:1px solid var(--border);
+    background:color-mix(in oklab, var(--bg), black 5%);
+  }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .wrap { display:grid; grid-template-columns:320px 1fr; gap:14px; padding:12px; }
+  .panel {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+    position:sticky;
+    top:12px;
+    height:calc(100vh - 40px);
+    overflow:auto;
+  }
+  .panel h2 { font-size:14px; margin:6px 0 10px; color:var(--muted); }
+  .field { margin-bottom:10px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  input[type=number], select, .btn {
+    width:100%;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+  }
+  .row { display:flex; gap:8px; }
+  .seg { display:flex; gap:6px; }
+  .seg button {
+    flex:1;
+    padding:8px 10px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .seg button.active { outline:2px solid var(--accent); outline-offset:0; }
+  .content { display:flex; flex-direction:column; gap:14px; }
+  .card {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+  }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .summary p { margin:4px 0; color:var(--text); }
+  .muted { color:var(--muted); }
+  .badge {
+    display:inline-block;
+    padding:2px 6px;
+    font-size:11px;
+    border-radius:9999px;
+    background:color-mix(in oklab, var(--card), black 7%);
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px; border-bottom:1px solid var(--border); font-size:12px; }
+  th { text-align:left; color:var(--text); }
+  .btn { cursor:pointer; }
+  .head-actions { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+  .btn-inline {
+    padding:8px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text);
+    cursor:pointer;
+  }
+  @media (max-width:980px) {
+    .wrap { grid-template-columns:1fr; }
+    .panel { position:static; height:auto; }
+    .grid2 { grid-template-columns:1fr; }
+  }
+  
+/* Panel filter yang bisa di-hide */
+details.filter{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:6px 8px;
+  background:var(--bg);
+  margin-bottom:8px;
+}
+details.filter > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex; align-items:center; justify-content:space-between;
+  color:var(--muted);
+}
+details.filter[open] > summary{ color:var(--text); }
+details.filter > summary::-webkit-details-marker { display:none; }
+.summary-chip{ font-size:11px; color:var(--muted); }
+
+/* Compact Choices.js */
+.choices[data-type*="select-multiple"] .choices__inner{
+  padding:4px 6px; min-height:36px; background:var(--bg); border-color:var(--border);
+}
+.choices__list--multiple .choices__item{
+  margin:2px 2px; padding:2px 6px; font-size:12px; border-radius:9999px;
+}
+.choices__list--dropdown{
+  max-height:220px; overflow:auto; background:var(--card); border-color:var(--border);
+}
+.choices__list--dropdown .choices__item--selectable{ font-size:13px; }
+
+/* Warna untuk angka naik/turun */
+.pos{ color:#16a34a; }      /* hijau */
+.neg{ color:#ef4444; }      /* merah */
+.neutral{ color:var(--muted); } /* abu-abu */
+
+/* ===== TICKER ===== */
+.ticker{
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background: color-mix(in oklab, var(--card), black 6%);
+  overflow:hidden;
+}
+.ticker__track{
+  white-space:nowrap;
+  will-change: transform;
+  display:inline-block;
+  padding:8px 0;
+  /* durasi scroll akan di-set via style inline --dur (detik) */
+  animation: tickerAnim var(--dur, 30s) linear infinite;
+}
+.ticker__item{ margin-right:28px; font-size:13px }
+.ticker__wk{ color:var(--muted); margin-right:6px }
+@keyframes tickerAnim {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.ticker:hover .ticker__track{ animation-play-state: paused; }
+
+/* ===== Collapsible filter + checkbox list ===== */
+details.filter{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:6px 8px;
+  background:var(--bg);
+  margin-bottom:8px;
+}
+details.filter > summary{
+  cursor:pointer; list-style:none;
+  display:flex; align-items:center; justify-content:space-between; color:var(--muted);
+}
+details.filter[open] > summary{ color:var(--text); }
+details.filter > summary::-webkit-details-marker{ display:none; }
+.summary-chip{ font-size:11px; color:var(--muted); }
+
+.filter-search{
+  width:100%; padding:8px 10px; margin:8px 0;
+  border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--text);
+}
+.filter-list{
+  max-height:220px; overflow:auto;
+  border:1px dashed var(--border); border-radius:8px; padding:6px;
+  background:var(--card);
+}
+.filter-item{
+  display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:8px;
+}
+.filter-item:hover{ background: color-mix(in oklab, var(--card), var(--text) 8%) }
+.filter-item input{ width:16px; height:16px }
+
+/* Untuk kemungkinan radio (single-select) — siap pakai bila diperlukan */
+.filter-item input[type="radio"]{ accent-color: #3b82f6; }
+.filter-item input[type="checkbox"]{ accent-color: #3b82f6; }
+
+/* ===== Warna angka naik/turun ===== */
+.pos     { color:#16a34a !important; }   /* hijau (naik) */
+.neg     { color:#ef4444 !important; }   /* merah (turun) */
+.neutral { color:var(--muted) !important; }
+
+/* Header sticky */
+header{
+  position: sticky;
+  top: 0;
+  z-index: 1000; /* pastikan di atas chart/konten */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* Warna latar pakai var yang sudah ada di tema */
+  background: color-mix(in oklab, var(--bg), black 5%);
+}
+
+/* ========== Tooltip Colors ========== */
+:root {
+  /* Mode gelap */
+  --tooltipBg:    var(--card);   /* latar tooltip (gelap) */
+  --tooltipText:  var(--text);   /* teks tooltip */
+  --tooltipLine:  var(--border); /* garis tepi tooltip */
+}
+:root[data-theme="light"] {
+  /* Mode terang */
+  --tooltipBg:    var(--card);   /* biasanya putih */
+  --tooltipText:  var(--text);   /* teks gelap */
+  --tooltipLine:  var(--border); /* garis tepi tooltip */
+}
+
+  </style>
+  
+</head>
+<body>
+<header>
+  <div class="head-actions">
+    <div>
+      <h1>Dashboard Penjualan — Mingguan</h1>
+      <div class="muted">Y: End Stock, FC, SP, SV • X: Week • Filter: Week, Region, Area, Type, Brand • Unit: Pack / TH Stick</div>
+    </div>
+    <div>
+      <button id="themeToggle" class="btn-inline" title="Toggle tema">🌙/☀️</button>
+    </div>
+  </div>
+</header>
+
+<!-- TICKER: menampilkan perubahan week-over-week (SV, FC, SP, ES) -->
+<div id="ticker" class="ticker">
+  <div id="tickerTrack" class="ticker__track"></div>
+</div>
+
+<div class="wrap">
+  <!-- Sidebar / Control Panel -->
+  <aside class="panel">
+    <h2>Data</h2>
+    <div class="field">
+      <input type="file" id="fileInput" accept=".xlsx" class="btn"/>
+      <div class="muted" style="font-size:11px;margin-top:6px">Klik “Muat Excel (.xlsx)” lalu pilih <b>Data Penjualan.xlsx</b>.</div>
+    </div>
+
+<h2>Filter</h2>
+
+<div class="field">
+  <label>Rentang Week</label>
+  <div class="row">
+    <input type="number" id="wmin" value="1"/>
+    <input type="number" id="wmax" value="52"/>
+  </div>
+  <div class="muted" id="wkRangeText" style="margin-top:4px">(Week …)</div>
+</div>
+
+<!-- Region -->
+<details class="filter" id="secRegion">
+  <summary><span>Region</span><span class="summary-chip" id="chipRegion">Semua</span></summary>
+  <input id="srchRegion" class="filter-search" type="text" placeholder="Cari Region…">
+  <div id="listRegion" class="filter-list"></div>
+</details>
+
+<!-- Area -->
+<details class="filter" id="secArea">
+  <summary><span>Area</span><span class="summary-chip" id="chipArea">Semua</span></summary>
+  <input id="srchArea" class="filter-search" type="text" placeholder="Cari Area…">
+  <div id="listArea" class="filter-list"></div>
+</details>
+
+<!-- Type -->
+<details class="filter" id="secType">
+  <summary><span>Type</span><span class="summary-chip" id="chipType">Semua</span></summary>
+  <input id="srchType" class="filter-search" type="text" placeholder="Cari Type…">
+  <div id="listType" class="filter-list"></div>
+</details>
+
+<!-- Brand -->
+<details class="filter" id="secBrand">
+  <summary><span>Brand</span><span class="summary-chip" id="chipBrand">Semua</span></summary>
+  <input id="srchBrand" class="filter-search" type="text" placeholder="Cari Brand…">
+  <div id="listBrand" class="filter-list"></div>
+</details>
+
+<div class="field" style="margin-top:10px">
+  <label>Unit</label>
+  <div class="seg">
+    <button id="unitPack" class="active">Pack</button>
+    <button id="unitStick">TH Stick</button>
+  </div>
+</div>
+
+<div class="field">
+  <button id="reset" class="btn" style="width:100%">Reset Filter</button>
+</div>
+<div class="muted" style="font-size:11px">
+  Tip: klik judul untuk membuka/menutup filter. Search mendukung multi-pick dengan checkbox.
+</div>
+
+
+  </aside>
+
+  <!-- Content -->
+  <main class="content">
+    <section class="card">
+      <h3 style="margin:0 0 6px">Tren Mingguan: End Stock, FC, SP, SV</h3>
+      <div id="chart_main" style="height:420px"></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card">
+        <h3 style="margin:0 0 6px">Deviasi: FC−SV, SP−SV, FC−SP</h3>
+        <div id="chart_dev" style="height:340px"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 6px">Ringkasan Tren</h3>
+        <div id="summary" class="summary"><p class="muted">Muat Excel untuk melihat ringkasan.</p></div>
+
+        <h3 style="margin:16px 0 6px">Top Brand (SV)</h3>
+        <div class="grid2">
+          <div>
+            <div class="badge">Tertinggi</div>
+            <table id="top_hi"><thead><tr><th>Brand</th><th>SV</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div>
+            <div class="badge" style="background:#2a1818;color:#fecaca;border-color:#7f1d1d">Terendah</div>
+            <table id="top_lo"><thead><tr><th>Brand</th><th>SV</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 6px">End Stock vs SV (Stok vs Penjualan)</h3>
+      <div id="chart_es_sv" style="height:380px"></div>
+      <div id="stockSalesNotes" class="muted" style="margin-top:8px;font-size:13px"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 6px">Insight Prediktif (Heuristik)</h3>
+      <div id="forecastBox" class="summary"><p class="muted">Estimasi berbasis linear fit sederhana, gunakan sebagai indikasi awal (±2 minggu).</p></div>
+    </section>
+  </main>
+  
+<div id="status" style="font:14px/1.4 system-ui, sans-serif;color:#444;margin:.5rem 0;">
+  Menunggu memuat data…
+</div>
+
+</div>
+
+<script>
+  // ============ THEME ============
+  const themeBtn = document.getElementById('themeToggle');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const savedTheme = localStorage.getItem('theme');
+  const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', initialTheme);
+  themeBtn.textContent = initialTheme === 'dark' ? '☀️' : '🌙';
+  themeBtn.onclick = ()=>{
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    themeBtn.textContent = next === 'dark' ? '☀️' : '🌙';
+    // re-render for color consistency
+    updateAll();
+  };
+
+  // ============ HELPERS ============
+  const cssVal = (name, fallback='rgba(0,0,0,0)') =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const layoutBase = () => ({
+  margin:{t:10,r:10,l:40,b:40},
+  paper_bgcolor:'rgba(0,0,0,0)',
+  plot_bgcolor: cssVal('--plotBg', '#ffffff'),
+  xaxis:{ gridcolor: cssVal('--grid', '#e2e8f0') },
+  yaxis:{ gridcolor: cssVal('--grid', '#e2e8f0') },
+  hovermode:'x unified',   // gabungkan tooltip per sumbu X
+  legend:{orientation:'h'},
+  font:{ color: cssVal('--text', '#0f172a') },
+  hoverlabel:{
+    bgcolor:     cssVal('--tooltipBg',  '#111827'),
+    bordercolor: cssVal('--tooltipLine','#334155'),
+    font:{
+      family:"'Inter', system-ui, -apple-system, Segoe UI, Roboto",
+      size:12,
+      color: cssVal('--tooltipText','#e5e7eb')
+    },
+    align:'left',
+    namelength:-1
+  }
+});
+  
+/* ================== ANIMASI / TRANSISI ================== */
+
+// Setting animasi global (ubah durasi/easing sesuai selera)
+const ANIM = {
+  dur: 550,                 // durasi transisi (ms)
+  ease: 'cubic-in-out'      // easing: 'linear'|'quad-in-out'|'cubic-in-out'|'sin-in-out' dst.
+};
+
+// Hormati preferensi aksesibilitas OS (reduce motion)
+try {
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReduced) ANIM.dur = 0;
+} catch (_) { /* no-op */ }
+
+/**
+ * Helper: render dengan transisi mulus.
+ * - Gunakan ini menggantikan Plotly.react di semua fungsi render chart.
+ * - Menyisipkan layout.transition + uirevision agar animasi halus dan zoom/pan tetap terjaga.
+ */
+function smoothPlot(divId, traces, layout, config={displayModeBar:false, responsive:true}) {
+  const mergedLayout = {
+    ...layout,
+    // Animasi transisi (Plotly akan menganimasikan perubahan yang didukung)
+    transition: { duration: ANIM.dur, easing: ANIM.ease },
+
+    // Pertahankan zoom/pan & state pengguna di update berikutnya
+    uirevision: 'keep'
+  };
+
+  // Haluskan interaksi hover/cursor (crosshair/spike)
+  mergedLayout.xaxis = {
+    ...(layout.xaxis||{}),
+    hoverformat: '%{x}',             // contoh; sesuaikan jika x bukan numerik
+    showspikes: true,
+    spikemode: 'across',             // garis tegak lurus saat hover
+    spikecolor: cssVal('--border', '#334155'),
+    spikethickness: 1,
+    hoverdistance: 80                // hover tidak terlalu “gelisah”
+  };
+  mergedLayout.yaxis = {
+    ...(layout.yaxis||{}),
+    showspikes: true,
+    spikemode: 'across',
+    spikecolor: cssVal('--border', '#334155'),
+    spikethickness: 1
+  };
+
+  return Plotly.react(divId, traces, mergedLayout, config);
+}  
+  
+  const toSI = (n)=> {
+    if(n==null || isNaN(n)) return '0';
+    const abs=Math.abs(n);
+    return abs>=1e12?(n/1e12).toFixed(2)+'T':
+           abs>=1e9?(n/1e9).toFixed(2)+'B':
+           abs>=1e6?(n/1e6).toFixed(2)+'M':
+           abs>=1e3?(n/1e3).toFixed(2)+'K':
+           (Math.round(n*100)/100).toString();
+  };
+  const esc = (s)=>String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+  const pct = (a,b)=> b===0 ? 0 : (a/b*100);
+
+// Tanda naik/turun pada angka; dukung persen
+function fmtSigned(n, {pct=false, digits=2}={}){
+  if(!isFinite(n) || n===0) return `<span class="neutral">● ${pct? '0.00%' : '0'}</span>`;
+  const cls = n>0 ? 'pos' : 'neg';
+  const tri = n>0 ? '▲' : '▼';
+  const sign = n>0 ? '+' : '-';
+  const val = pct ? Math.abs(n).toFixed(digits) + '%' : toSI(Math.abs(n));
+  return `<span class="${cls}">${tri} ${sign}${val}</span>`;
+}
+
+// Update chip ringkas (tampilkan maksimal 2 item + sisa)
+function chipText(arr){
+  if(!arr || arr.length===0) return 'Semua';
+  if(arr.length<=2) return arr.join(', ');
+  return `${arr[0]}, ${arr[1]} +${arr.length-2}`;
+}
+function updateChips(){
+  const r = getSel(chRegion), a=getSel(chArea), t=getSel(chType), b=getSel(chBrand);
+  document.getElementById('chipRegion').textContent = chipText(r);
+  document.getElementById('chipArea').textContent   = chipText(a);
+  document.getElementById('chipType').textContent   = chipText(t);
+  document.getElementById('chipBrand').textContent  = chipText(b);
+}
+
+
+  // Linear regression (least squares)
+  function linfit(xs, ys){
+    const n=xs.length; if(n<2) return {m:0,b:ys[ys.length-1]||0,r2:0};
+    const mean = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+    const xbar=mean(xs), ybar=mean(ys);
+    let num=0, den=0, ssTot=0, ssRes=0;
+    for(let i=0;i<n;i++){ num+=(xs[i]-xbar)*(ys[i]-ybar); den+=(xs[i]-xbar)**2; }
+    const m = den===0? 0 : num/den;
+    const b = ybar - m*xbar;
+    for(let i=0;i<n;i++){ const yhat=m*xs[i]+b; ssTot+=(ys[i]-ybar)**2; ssRes+=(ys[i]-yhat)**2; }
+    const r2 = ssTot===0 ? 0 : 1 - ssRes/ssTot;
+    return {m,b,r2};
+  }
+
+  function quantile(arr, q){
+    if(!arr.length) return 0;
+    const a=[...arr].sort((x,y)=>x-y);
+    const pos=(a.length-1)*q; const base=Math.floor(pos); const rest=pos-base;
+    return a[base+1]!==undefined ? a[base]+rest*(a[base+1]-a[base]) : a[base];
+  }
+
+  // ============ STATE ============
+  let RAW=[]; let unit='pack'; let wkMin=1,wkMax=52;
+  const fileInput = document.getElementById('fileInput');
+  const wminEl = document.getElementById('wmin');
+  const wmaxEl = document.getElementById('wmax');
+  const wkRangeText = document.getElementById('wkRangeText');
+
+  // Choices.js instances
+  let chRegion, chArea, chType, chBrand;
+  const elRegion = document.getElementById('region');
+  const elArea   = document.getElementById('area');
+  const elType   = document.getElementById('type');
+  const elBrand  = document.getElementById('brand');
+
+  // Unit buttons
+  document.getElementById('unitPack').onclick = ()=>{unit='pack'; swapUnit(); updateAll();};
+  document.getElementById('unitStick').onclick = ()=>{unit='stick'; swapUnit(); updateAll();};
+  function swapUnit(){
+    document.getElementById('unitPack').classList.toggle('active', unit==='pack');
+    document.getElementById('unitStick').classList.toggle('active', unit==='stick');
+  }
+
+document.getElementById('reset').onclick = ()=>{
+  if(!RAW.length) return;
+  document.getElementById('wmin').value = wkMin;
+  document.getElementById('wmax').value = wkMax;
+
+  // Hapus semua pilihan
+  Object.keys(FILTER_SEL).forEach(k=>FILTER_SEL[k].clear());
+
+  // Render ulang list agar semua checkbox tidak tercentang
+  ['region','area','type','brand'].forEach(k=>renderFilterList(k));
+
+  // Unit kembali ke Pack
+  unit='pack'; 
+  document.getElementById('unitPack').classList.add('active');
+  document.getElementById('unitStick').classList.remove('active');
+
+  updateChips();
+  updateAll();
+};
+
+// Opsi & pilihan aktif
+const FILTER_OPTS = { region:[], area:[], type:[], brand:[] };
+const FILTER_SEL  = { region:new Set(), area:new Set(), type:new Set(), brand:new Set() };
+
+// Render daftar checkbox
+function renderFilterList(key){
+  const listEl = document.getElementById('list'+cap(key));
+  const srchEl = document.getElementById('srch'+cap(key));
+  if(!listEl) return;
+
+  const q = (srchEl?.value || '').toLowerCase().trim();
+  const opts = FILTER_OPTS[key].filter(v => !q || String(v).toLowerCase().includes(q));
+
+  listEl.innerHTML = opts.map(v => {
+    const checked = FILTER_SEL[key].has(v) ? 'checked' : '';
+    return `<label class="filter-item">
+      <input type="checkbox" data-k="${key}" data-v="${encodeURIComponent(v)}" ${checked}>
+      <span>${esc(v)}</span>
+    </label>`;
+  }).join('') || `<div class="muted" style="padding:6px">Tidak ada opsi.</div>`;
+
+  // Bind perubahan checkbox
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const k = e.target.dataset.k;
+      const v = decodeURIComponent(e.target.dataset.v || '');
+      if(e.target.checked) FILTER_SEL[k].add(v);
+      else FILTER_SEL[k].delete(v);
+      updateChips(); 
+      updateAll();
+    });
+  });
+}
+
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+function updateChips(){
+  ['region','area','type','brand'].forEach(k=>{
+    document.getElementById('chip'+cap(k)).textContent = chipText([...FILTER_SEL[k]]);
+  });
+}
+// bind search box
+['region','area','type','brand'].forEach(k=>{
+  const el = document.getElementById('srch'+cap(k));
+  el?.addEventListener('input', ()=>renderFilterList(k));
+});
+
+// Inisialisasi checkbox filter setelah file dimuat
+function initFilterCheckboxes(){
+  // Tutup semua panel agar ringkas
+  ['secRegion','secArea','secType','secBrand'].forEach(id=>{
+    const d = document.getElementById(id);
+    if(d) d.open = false;
+  });
+
+  // Pasang listener search (sekali saja) & render list awal
+  ['region','area','type','brand'].forEach(k=>{
+    const el = document.getElementById('srch'+cap(k));
+    if(el && !el.dataset.bound){
+      el.addEventListener('input', ()=>renderFilterList(k));
+      el.dataset.bound = '1';
+    }
+    renderFilterList(k);
+  });
+
+  updateChips();
+}
+
+// Chip ringkas
+function chipText(arr){
+  if(!arr || arr.length===0) return 'Semua';
+  if(arr.length<=2) return arr.join(', ');
+  return `${arr[0]}, ${arr[1]} +${arr.length-2}`;
+}
+function selArr(k){ return [...FILTER_SEL[k]]; }
+function updateChips(){
+  ['region','area','type','brand'].forEach(k=>{
+    const chip = document.getElementById('chip'+cap(k));
+    if(chip) chip.textContent = chipText(selArr(k));
+  });
+}
+
+  // ============ File Loader ============
+fileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files?.[0]; 
+  if(!file) return;
+
+  // Baca Excel
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, {type:'array'});
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  let rows = XLSX.utils.sheet_to_json(sheet, {raw:true, defval:null});
+
+  // Normalisasi key kolom (trim)
+  rows = rows.map(r=>{const o={}; for(const k in r) o[String(k).trim()] = r[k]; return o;});
+
+  // Bangun RAW
+  RAW = rows.map(r=>({
+    Week: parseInt(r['Week'])||0,
+    Region: (r['Region']??'').toString().trim(),
+    Area:   (r['Area']??'').toString().trim(),
+    Brand:  (r['Brand']??'').toString().trim(),
+    Type:   (r['Type']??'').toString().trim(),
+    // Unit Pack
+    ES_P:+r['End Stock (Pac)']||0, FC_P:+r['FC (Pac)']||0, SP_P:+r['SP (Pac)']||0, SV_P:+r['SV (Pac)']||0,
+    // Unit TH Stick
+    ES_T:+r['End Stock (TH Stick)']||0, FC_T:+r['FC (TH Stick)']||0, SP_T:+r['SP (TH Stick)']||0, SV_T:+r['SV (TH Stick)']||0
+  }));
+
+  // Rentang Week
+  const wkVals = RAW.map(r=>r.Week).filter(Number.isFinite);
+  wkMin = Math.min(...wkVals); wkMax = Math.max(...wkVals);
+  document.getElementById('wmin').value = wkMin;
+  document.getElementById('wmax').value = wkMax;
+  document.getElementById('wkRangeText').textContent = `(${wkMin} – ${wkMax})`;
+
+  // Opsi unik untuk checkbox
+  const uniq = arr => [...new Set(arr.filter(v => v!=null && v!==''))]
+                      .sort((a,b)=>String(a).localeCompare(String(b)));
+
+  FILTER_OPTS.region = uniq(RAW.map(r=>r.Region));
+  FILTER_OPTS.area   = uniq(RAW.map(r=>r.Area));
+  FILTER_OPTS.type   = uniq(RAW.map(r=>r.Type));
+  FILTER_OPTS.brand  = uniq(RAW.map(r=>r.Brand));
+
+  // Bersihkan pilihan aktif
+  Object.keys(FILTER_SEL).forEach(k => FILTER_SEL[k].clear());
+
+  // Inisialisasi ulang UI checkbox + search + chip
+  initFilterCheckboxes();
+
+  // Render awal
+  updateAll();
+});
+
+
+  function fillSelect(el, list){
+    el.innerHTML = list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  }
+function initChoices(){
+  chRegion?.destroy(); chArea?.destroy(); chType?.destroy(); chBrand?.destroy();
+  const baseOpts = (ph)=>({
+    removeItemButton:true,
+    searchEnabled:true,
+    searchResultLimit:100,
+    placeholderValue:ph,
+    searchPlaceholderValue:'Ketik untuk cari…',
+    shouldSort:true,
+    renderSelectedChoices:'auto' // lebih ringkas
+  });
+  chRegion = new Choices('#region', baseOpts('Pilih Region…'));
+  chArea   = new Choices('#area',   baseOpts('Pilih Area…'));
+  chType   = new Choices('#type',   baseOpts('Pilih Type…'));
+  chBrand  = new Choices('#brand',  baseOpts('Pilih Brand…'));
+
+  // update setiap ada perubahan
+  [chRegion, chArea, chType, chBrand].forEach(ch =>
+    ch.passedElement.element.addEventListener('change', ()=>{ updateChips(); updateAll(); })
+  );
+
+  // Tutup semua <details> agar lebih ringkas di awal
+  ['secRegion','secArea','secType','secBrand'].forEach(id=>{
+    const d = document.getElementById(id);
+    if(d) d.open = false;
+  });
+
+  updateChips();
+}
+
+  // ============ Filtering & Aggregation ============
+  const getSel = (ch)=> (ch ? ch.getValue(true) : []);
+function filterData(){
+  if(!RAW.length) return [];
+  let wmin = +document.getElementById('wmin').value;
+  let wmax = +document.getElementById('wmax').value;
+  if(wmin>wmax){ const t=wmin; wmin=wmax; wmax=t; document.getElementById('wmin').value=wmin; document.getElementById('wmax').value=wmax; }
+
+  const rSel = selArr('region'), aSel = selArr('area'), tSel = selArr('type'), bSel = selArr('brand');
+
+  return RAW.filter(r =>
+    r.Week>=wmin && r.Week<=wmax &&
+    (rSel.length? rSel.includes(r.Region): true) &&
+    (aSel.length? aSel.includes(r.Area): true) &&
+    (tSel.length? tSel.includes(r.Type): true) &&
+    (bSel.length? bSel.includes(r.Brand): true)
+  );
+}
+  const getVal = (r, k)=> unit==='pack' ? r[`${k}_P`] : r[`${k}_T`];
+
+  function aggByWeek(rows){
+    const m=new Map();
+    for(const r of rows){
+      const wk=r.Week; if(!m.has(wk)) m.set(wk,{Week:wk, ES:0, FC:0, SP:0, SV:0});
+      const o=m.get(wk);
+      o.ES+=getVal(r,'ES'); o.FC+=getVal(r,'FC'); o.SP+=getVal(r,'SP'); o.SV+=getVal(r,'SV');
+    }
+    return [...m.values()].sort((a,b)=>a.Week-b.Week);
+  }
+  function aggDev(rows){
+    const w=aggByWeek(rows);
+    return w.map(d=>({Week:d.Week, dFC_SV:d.FC-d.SV, dSP_SV:d.SP-d.SV, dFC_SP:d.FC-d.SP}));
+  }
+
+  function topBrands(rows){
+    const f=unit==='pack'?'SV_P':'SV_T', map=new Map();
+    for(const r of rows){ const k=r.Brand||'(Tanpa Brand)'; map.set(k,(map.get(k)||0)+(r[f]||0)); }
+    const arr=[...map.entries()].sort((a,b)=>b[1]-a[1]);
+    return {hi:arr.slice(0,5), lo:arr.slice(-5).reverse()};
+  }
+
+  // Detect window where SV turun & ES naik (window 3–4 minggu)
+  function detectStockSalesDivergence(byW, win=4){
+    const out=[];
+    for(let i=0;i+win<=byW.length;i++){
+      const seg=byW.slice(i,i+win);
+      const xs=seg.map(d=>d.Week);
+      const sv=seg.map(d=>d.SV);
+      const es=seg.map(d=>d.ES);
+      const fsv=linfit(xs,sv), fes=linfit(xs,es);
+      if(fsv.m<0 && fes.m>0){ // syarat divergen
+        out.push({
+          from:seg[0].Week, to:seg[seg.length-1].Week,
+          svDropPct: pct(sv[sv.length-1]-sv[0], Math.max(1, sv[0])),
+          esRaisePct: pct(es[es.length-1]-es[0], Math.max(1, es[0]))
+        });
+      }
+    }
+    // Gabungkan rentang yang berdekatan
+    const merged=[];
+    for(const r of out){
+      if(!merged.length){ merged.push(r); continue; }
+      const last=merged[merged.length-1];
+      if(r.from<=last.to+1){
+        last.to=r.to;
+        last.svDropPct=r.svDropPct; last.esRaisePct=r.esRaisePct;
+      } else merged.push(r);
+    }
+    return merged.slice(0,3); // batasi 3 contoh
+  }
+
+  // Forecast sederhana: SV~0 & ES>P90 dalam horizon
+  function forecast(byW){
+    const k = Math.min(8, byW.length); // pakai 8 minggu terakhir jika cukup
+    if(k<2) return {msg:['Data terlalu pendek untuk estimasi.']};
+    const tail = byW.slice(-k);
+    const xs = tail.map(d=>d.Week);
+    const sv = tail.map(d=>d.SV);
+    const es = tail.map(d=>d.ES);
+    const fsv = linfit(xs, sv);
+    const fes = linfit(xs, es);
+
+    const msgs = [];
+
+    // SV mendekati nol
+    if(fsv.m<0){
+      const w0 = -fsv.b / fsv.m; // kapan SV=0
+      const lastW = byW[byW.length-1].Week;
+      if(isFinite(w0) && w0>lastW && w0<=lastW+26){
+        msgs.push(`SV diproyeksikan mendekati nol sekitar <b>W${Math.round(w0)}</b> (±2 minggu), slope ${fsv.m.toFixed(2)}, R² ${fsv.r2.toFixed(2)}.`);
+      } else {
+        msgs.push(`SV cenderung menurun (slope ${fsv.m.toFixed(2)}, R² ${fsv.r2.toFixed(2)}) namun perkiraan titik nol berada di luar horizon.`);
+      }
+    } else {
+      msgs.push(`SV tidak menunjukkan tren menuju nol (slope ${fsv.m.toFixed(2)}).`);
+    }
+
+    // End Stock tinggi (melewati P90 historis)
+    const p90 = quantile(byW.map(d=>d.ES), 0.9);
+    if(fes.m>0){
+      const wP90 = (p90 - fes.b)/fes.m;
+      const lastW = byW[byW.length-1].Week;
+      if(isFinite(wP90) && wP90>lastW && wP90<=lastW+26){
+        msgs.push(`End Stock berpotensi melewati ambang tinggi (P90 ≈ ${toSI(p90)}) sekitar <b>W${Math.round(wP90)}</b> (±2 minggu).`);
+      } else {
+        msgs.push(`End Stock naik (slope ${fes.m.toFixed(2)}), namun belum terlihat menembus ambang tinggi (P90) dalam 26 minggu ke depan.`);
+      }
+    } else {
+      msgs.push(`End Stock tidak menunjukkan kenaikan menuju ambang tinggi (P90).`);
+    }
+
+    return {msg:msgs, fit:{sv:fsv, es:fes, p90}};
+  }
+
+  // ============ Rendering ============
+  function renderMain(byW){
+    const x=byW.map(d=>d.Week);
+    const common = {type:'scatter', mode:'lines+markers', line:{shape:'spline', smoothing:1.15, width:2}, marker:{size:4, opacity:0.85}};
+    const traces = [
+      {...common, x, y:byW.map(d=>d.ES), name:'End Stock', line:{...common.line, color:'#94a3b8'}},
+      {...common, x, y:byW.map(d=>d.FC), name:'FC',        line:{...common.line, color:'#22c55e'}},
+      {...common, x, y:byW.map(d=>d.SP), name:'SP',        line:{...common.line, color:'#f59e0b'}},
+      {...common, x, y:byW.map(d=>d.SV), name:'SV',        line:{...common.line, color:'#60a5fa'}},
+    ];
+    Plotly.react('chart_main', traces, {...layoutBase(), yaxis:{...layoutBase().yaxis, title:'Qty'}}, {displayModeBar:false, responsive:true});
+  }
+
+  function renderDev(dev){
+  
+  const x = dev.map(d=>d.Week);
+  const y1 = dev.map(d=>d.dFC_SV);
+  const y2 = dev.map(d=>d.dSP_SV);
+  const y3 = dev.map(d=>d.dFC_SP);
+  const red = '#ef4444', g='#22c55e', o='#f59e0b', b='#0ea5e9';
+  
+  const traces = [
+    {x, y:y1, type:'bar', name:'FC − SV', marker:{color:y1.map(v=>v>=0? g : red)}},
+    {x, y:y2, type:'bar', name:'SP − SV', marker:{color:y2.map(v=>v>=0? o : red)}},
+    {x, y:y3, type:'bar', name:'FC − SP', marker:{color:y3.map(v=>v>=0? b : red)}},
+  ];
+  Plotly.react('chart_dev', traces, {...layoutBase(), yaxis:{...layoutBase().yaxis, title:'Delta'}}, {displayModeBar:false, responsive:true});
+}
+	
+
+  function renderSummary(byW){
+    const el=document.getElementById('summary');
+    if(!byW.length){ el.innerHTML='<p class="muted">Tidak ada data untuk filter ini.</p>'; return; }
+    const first=byW[0], last=byW[byW.length-1];
+    const svGrowth = first.SV===0?0:((last.SV-first.SV)/Math.abs(first.SV))*100;
+    const sum = k => byW.reduce((a,d)=>a+(d[k]||0),0);
+    const totalSV=sum('SV'), totalFC=sum('FC'), totalSP=sum('SP'), totalES=sum('ES');
+    const maxW = byW.reduce((m,d)=>d.SV>m.SV?d:m,byW[0]);
+    const minW = byW.reduce((m,d)=>d.SV<m.SV?d:m,byW[0]);
+    const avgGapFC_SV = byW.reduce((a,d)=>a+Math.abs(d.FC-d.SV),0)/byW.length;
+    const avgGapSP_SV = byW.reduce((a,d)=>a+Math.abs(d.SP-d.SV),0)/byW.length;
+
+el.innerHTML = `
+  <p><b>Rentang Week:</b> ${byW[0].Week}–${byW[byW.length-1].Week} • <b>Unit:</b> ${unit==='pack'?'Pack':'TH Stick'}</p>
+  <p>Total <b>SV</b>: ${toSI(totalSV)} • <b>FC</b>: ${toSI(totalFC)} • <b>SP</b>: ${toSI(totalSP)} • <b>End Stock</b>: ${toSI(totalES)}</p>
+  <p>Perubahan SV (minggu pertama → terakhir): <b>${fmtSigned(svGrowth, {pct:true})}</b></p>
+  <p>Minggu SV tertinggi: <b>W${maxW.Week}</b> (${toSI(maxW.SV)}) • terendah: <b>W${minW.Week}</b> (${toSI(minW.SV)})</p>
+  <p>Rata-rata deviasi mingguan: <b>|FC−SV| = ${toSI(avgGapFC_SV)}</b>, <b>|SP−SV| = ${toSI(avgGapSP_SV)}</b></p>
+`;
+}
+
+  function renderESvsSV(byW){
+    const x=byW.map(d=>d.Week);
+    const common={type:'scatter', mode:'lines+markers', line:{shape:'spline', smoothing:1.15, width:2}, marker:{size:4, opacity:0.85}};
+    const traces = [
+      {...common, x, y:byW.map(d=>d.ES), name:'End Stock', line:{...common.line, color:'#94a3b8'}},
+      {...common, x, y:byW.map(d=>d.SV), name:'SV',        line:{...common.line, color:'#60a5fa'}}
+    ];
+    Plotly.react('chart_es_sv', traces, {...layoutBase(), yaxis:{...layoutBase().yaxis, title:'Qty'}}, {displayModeBar:false, responsive:true});
+
+    // Analisa divergensi (contoh narasi)
+	  
+	const divs = detectStockSalesDivergence(byW, 4);
+	const el = document.getElementById('stockSalesNotes');
+	if(!divs.length){
+	el.innerHTML = 'Tidak ditemukan periode jelas dimana SV menurun sementara End Stock meningkat pada window 3–4 minggu.';
+	return;
+	}
+	el.innerHTML = '<b>Insight:</b><ul style="margin:6px 0 0 16px">'+
+	divs.map(d=>{
+    const svTxt = fmtSigned(d.svDropPct, {pct:true});
+    const esTxt = fmtSigned(d.esRaisePct, {pct:true});
+    return `<li>W${d.from}–W${d.to}: Perubahan SV ${svTxt}, End Stock ${esTxt}.</li>`;
+	}).join('')+
+	'</ul>';
+
+  }
+
+  function renderTop(rows){
+    const {hi,lo}=topBrands(rows);
+    const r = (id,arr)=>{const tb=document.querySelector(`#${id} tbody`); tb.innerHTML=arr.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${toSI(v)}</td></tr>`).join('');};
+    r('top_hi',hi); r('top_lo',lo);
+  }
+
+  function renderForecast(byW){
+    const box=document.getElementById('forecastBox');
+    if(byW.length<3){ box.innerHTML='<p class="muted">Data terlalu pendek untuk estimasi.</p>'; return; }
+	const f = forecast(byW);
+	box.innerHTML = f.msg.map(m=>{
+	return m
+	.replace(/slope SV: ([^<]+)/i, (__,val)=>`slope SV: ${fmtSigned(parseFloat(val)||0)}`)
+    .replace(/slope ES: ([^<]+)/i, (__,val)=>`slope ES: ${fmtSigned(parseFloat(val)||0)}`);
+	}).join('') +
+	`<p class="muted" style="margin-top:8px">Catatan: <i>estimasi memakai linear fit sederhana pada ~8 minggu terakhir bila tersedia. Gunakan untuk indikasi awal saja.</i></p>`;
+  }
+
+// Bangun item ticker week-over-week untuk SV, FC, SP, ES (ikut unit & filter)
+function renderTicker(byW){
+  const track = document.getElementById('tickerTrack');
+  if(!byW.length){ track.innerHTML=''; return; }
+
+  // Buat item per transisi week -> week+1
+  const items = [];
+  for(let i=1;i<byW.length;i++){
+    const a=byW[i-1], b=byW[i];
+    const pctChg = (cur, prev)=> prev===0 ? 0 : ((cur-prev)/Math.abs(prev))*100;
+    const row = {
+      wk: `W${b.Week}`,
+      es: fmtSigned(pctChg(b.ES, a.ES), {pct:true}),
+      fc: fmtSigned(pctChg(b.FC, a.FC), {pct:true}),
+      sp: fmtSigned(pctChg(b.SP, a.SP), {pct:true}),
+      sv: fmtSigned(pctChg(b.SV, a.SV), {pct:true}),
+    };
+    items.push(`<span class="ticker__item">
+      <span class="ticker__wk">${row.wk}:</span>
+      SV ${row.sv} &nbsp;•&nbsp; FC ${row.fc} &nbsp;•&nbsp; SP ${row.sp} &nbsp;•&nbsp; ES ${row.es}
+    </span>`);
+  }
+
+  // Gandakan konten agar loop halus
+  const html = items.join('') + items.join('');
+  track.innerHTML = html;
+
+  // Atur durasi animasi berdasar panjang item (semakin banyak, semakin lama)
+  const seconds = Math.max(20, items.length * 8);
+  track.style.setProperty('--dur', seconds + 's');
+}
+
+
+
+  // ============ Update Pipeline ============
+  function updateAll(){
+    if(!RAW.length) return;
+    const rows = filterData();
+    const byW = aggByWeek(rows);
+    renderMain(byW);
+    renderDev(aggDev(rows));
+    renderSummary(byW);
+    renderTop(rows);
+    renderESvsSV(byW);
+    renderForecast(byW);
+	renderTicker(byW);
+  }
+
+  // Inputs listener
+  ['change','input'].forEach(ev => { wminEl.addEventListener(ev, updateAll); wmaxEl.addEventListener(ev, updateAll); });
+  
+  </script>
+  
+<script type="module">
+// ====== UTIL ======
+function normalizeHeader(h) {
+  return String(h || '')
+    .replace(/^\uFEFF/, '')     // buang BOM di header pertama
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[()\-\/\.]/g, '')
+    .replace(/thstick/g, 'thstick');
+}
+function toNum(v) {
+  if (v == null) return 0;
+  const s = String(v).trim().replace(/,/g,'');
+  if (s === '' || s.toLowerCase() === 'na' || s.toLowerCase() === 'null') return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+const clean = s => String(s ?? '').trim();
+
+// ====== PARSER TSV ======
+function parseTSV(text) {
+  // Buang BOM di awal file jika ada
+  text = text.replace(/^\uFEFF/, '');
+
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (!lines.length) return [];
+
+  const rawHeaders = lines[0].split('\t').map(h => h.trim());
+  const headersNorm = rawHeaders.map(normalizeHeader);
+  const idx = Object.fromEntries(headersNorm.map((h, i) => [h, i]));
+
+  // Validasi header minimal
+  const requiredKeys = [
+    'week','region','plant','area','brand','type',
+    'openingstockpac','endstockpac','fcpac','sppac','svpac',
+    'openingstockthstick','endstockthstick','fcthstick','spthstick','svthstick'
+  ];
+  const missing = requiredKeys.filter(k => !(k in idx));
+  if (missing.length) {
+    console.warn('[TSV] Header tidak ditemukan:', missing);
+    console.warn('[TSV] Header terdeteksi:', rawHeaders);
+  }
+
+  const recs = [];
+  for (let r = 1; r < lines.length; r++) {
+    const cells = lines[r].split('\t'); // biarkan kosong jika kolom kurang
+    const g = key => {
+      const i = idx[key];
+      return i != null ? cells[i] ?? '' : '';
+    };
+
+    const row = {
+      Week: toNum(g('week')),
+      Region: clean(g('region')),
+      Plant: clean(g('plant')),
+      Area: clean(g('area')),
+      Brand: clean(g('brand')),
+      Type: clean(g('type')),
+
+      // Pac
+      OS_Pac: toNum(g('openingstockpac')),
+      ES_Pac: toNum(g('endstockpac')),
+      FC_Pac: toNum(g('fcpac')),
+      SP_Pac: toNum(g('sppac')),
+      SV_Pac: toNum(g('svpac')),
+
+      // TH Stick
+      OS_TH: toNum(g('openingstockthstick')),
+      ES_TH: toNum(g('endstockthstick')),
+      FC_TH: toNum(g('fcthstick')),
+      SP_TH: toNum(g('spthstick')),
+      SV_TH: toNum(g('svthstick')),
+    };
+
+    // turunan untuk grafik deviasi (pakai Pac sebagai default)
+    row.Dev_FC_minus_SV = row.FC_Pac - row.SV_Pac;
+    row.Dev_SP_minus_SV = row.SP_Pac - row.SV_Pac;
+    row.Dev_FC_minus_SP = row.FC_Pac - row.SP_Pac;
+
+    recs.push(row);
+  }
+  return recs;
+}
+
+// ====== LOADER (PATH ROBUST UNTUK GITHUB PAGES) ======
+async function loadDataFromTXT() {
+  // URL relatif terhadap file HTML saat ini (aman untuk Pages/subfolder)
+  const url = new URL('./Data Penjualan.txt', import.meta.url);
+  const resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) {
+    throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
+  }
+  let text = await resp.text();
+  return parseTSV(text);
+}
+
+// ====== BOOTSTRAP (contoh pemakaian) ======
+document.addEventListener('DOMContentLoaded', async () => {
+  const $status = document.getElementById('status');
+  try {
+    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
+    const data = await loadDataFromTXT();
+    console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+    $status && ($status.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris`);
+    // TODO: panggil pipeline Anda, mis. initDashboard(data);
+    if (window.initDashboard) window.initDashboard(data);
+  } catch (err) {
+    console.error(err);
+    $status && ($status.textContent = 'Gagal memuat data. Cek konsol/devtools.');
+  }
+});
+</script>
+
+<footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
+  create by: EJV Team
+</footer>
+
+
+</body>
+</html>
