@@ -18,6 +18,9 @@
 <link href="https://fonts.googleapis.comink" rel="preconnect">
 <link href="https://fonts.googleapis.com/css2?family=00;600;700&display=swap"/>
 
+	  <!-- ECharts 5: CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
 <style>
   :root {
     --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb;
@@ -1083,132 +1086,108 @@ function parseTSV(text) {
   return out;
 }
 
-/* ============= RAW DATA SOURCE ============= */
-// Pilih RAW standar (GitHub)
+/* ================= RAW DATA SOURCE (seperti V3) ================= */
+// Pakai RAW GitHub (stabil, CORS OK)
 const DATA_URL = 'https://raw.githubusercontent.com/prayogoangga/TrendSV/main/Data%20Penjualan.txt';
-// (Opsional) kalau mau CDN cepat, bisa pakai jsDelivr dan pin ke commit SHA:
+// (opsional) jsDelivr CDN (bisa pin SHA commit)
 // const DATA_URL = 'https://cdn.jsdelivr.net/gh/prayogoangga/TrendSV@main/Data%20Penjualan.txt';
 
-// Versi untuk cache-busting (ganti tiap update file data)
-const DATA_VERSION = '2025-09-13-2';
+// Ganti nilainya setiap update file agar cache browser/CDN ter-refresh
+const DATA_VERSION = '2025-09-13-4';
 
-/* ============= LOADER: fetch dari RAW ============= */
+/* ================= LOADER (V3 style) ================= */
 async function loadDataFromTXT() {
   const u = new URL(DATA_URL);
-  u.searchParams.set('v', DATA_VERSION); // mudahkan refresh cache saat data update
+  u.searchParams.set('v', DATA_VERSION);
 
   let resp;
   try {
     resp = await fetch(u.toString(), { mode: 'cors', cache: 'force-cache' });
   } catch (netErr) {
     console.error('[TSV] Network error:', netErr);
-    throw new Error('Gagal menghubungi sumber RAW (cek koneksi/CORS).');
+    throw new Error('Gagal hubungi RAW GitHub/jsDelivr.');
   }
-  if (!resp.ok) {
-    throw new Error(`Fetch RAW gagal (${resp.status} ${resp.statusText}). Cek URL dan akses repo.`);
-  }
+  if (!resp.ok) throw new Error(`Fetch RAW gagal (${resp.status} ${resp.statusText}).`);
 
   const ct = (resp.headers.get('content-type') || '').toLowerCase();
   const text = await resp.text();
-
   // Guard: pastikan bukan HTML viewer
   if (ct.includes('text/html') || /^<!doctype|^<html/i.test(text.trim())) {
-    throw new Error('URL mengembalikan HTML, bukan TXT RAW. Gunakan raw.githubusercontent.com atau jsDelivr.');
+    throw new Error('URL bukan RAW TXT (yang terunduh HTML). Pakai raw.githubusercontent.com/jsDelivr, bukan URL "blob".');
   }
-
-  return parseTSV(text);
+  return parseTSV(text); // gunakan parser Anda (BOM-safe + normalize header)
 }
 
-/* ===================== STATE ===================== */
-let RAW = [];
-let FILTER = {
-  weekMin: null, weekMax: null,
-  regions: [], areas: [], types: [], brands: [],
-  unit: 'pac' // 'pac' | 'th'
-};
-
-/* ===================== HELPER ===================== */
-const fmt = n => (Number.isFinite(n) ? n : 0).toLocaleString('id-ID');
-//=============================================================================================const $  = sel => document.querySelector(sel);
-//=============================================================================================const $$ = sel => Array.from(document.querySelectorAll(sel));
-function uniqSorted(arr) {
-  return Array.from(new Set(arr)).filter(v => v !== '').sort((a,b) => (''+a).localeCompare(b));
-}
-function getUnitKey(base) { return FILTER.unit === 'pac' ? `${base}_Pac` : `${base}_TH`; }
-
-/* ===================== FILTER UI ===================== */
-function initFilters(data) {
-  const weeks = uniqSorted(data.map(d => d.Week)).map(Number).filter(Number.isFinite);
-  if (weeks.length) {
-    $('#weekMin') && ($('#weekMin').value = Math.min(...weeks));
-    $('#weekMax') && ($('#weekMax').value = Math.max(...weeks));
-    FILTER.weekMin = Number($('#weekMin')?.value) || Math.min(...weeks);
-    FILTER.weekMax = Number($('#weekMax')?.value) || Math.max(...weeks);
-  }
-
-  const regions = uniqSorted(data.map(d => d.Region));
-  const areas   = uniqSorted(data.map(d => d.Area));
-  const types   = uniqSorted(data.map(d => d.Type));
-  const brands  = uniqSorted(data.map(d => d.Brand));
-
-  function fill(sel, vals) {
-    const el = $(sel); if (!el) return;
-    el.innerHTML = vals.map(v => `<option value="${v}">${v}</option>`).join('');
-    el.selectedIndex = -1; // default: semua
-  }
-  fill('#regionSel', regions);
-  fill('#areaSel', areas);
-  fill('#typeSel', types);
-  fill('#brandSel', brands);
-  updateSelInfo();
+/* ================= Compatibility Layer (V3 → V2) ================= */
+// Alias: jika renderAll tidak ada tapi updateAll ada → pakai updateAll
+if (typeof window.renderAll !== 'function' && typeof window.updateAll === 'function') {
+  window.renderAll = window.updateAll;
 }
 
-function extractMulti(sel) { return Array.from($(sel)?.selectedOptions || []).map(o => o.value); }
-function updateSelInfo() {
-  const rs = extractMulti('#regionSel'), as = extractMulti('#areaSel'), ts = extractMulti('#typeSel'), bs = extractMulti('#brandSel');
-  const el = $('#selInfo'); if (!el) return;
-  el.textContent = [
-    rs.length ? `Region: ${rs.length}` : null,
-    as.length ? `Area: ${as.length}` : null,
-    ts.length ? `Type: ${ts.length}` : null,
-    bs.length ? `Brand: ${bs.length}` : null,
-  ].filter(Boolean).join(' • ') || 'Semua';
-}
-function onApply() {
-  FILTER.weekMin = Number($('#weekMin')?.value) || FILTER.weekMin;
-  FILTER.weekMax = Number($('#weekMax')?.value) || FILTER.weekMax;
-  FILTER.regions = extractMulti('#regionSel');
-  FILTER.areas   = extractMulti('#areaSel');
-  FILTER.types   = extractMulti('#typeSel');
-  FILTER.brands  = extractMulti('#brandSel');
-  updateSelInfo();
-  renderAll();
-}
-function onReset() {
-  ['regionSel','areaSel','typeSel','brandSel'].forEach(id => { const el = $('#'+id); if (el) el.selectedIndex = -1; });
-  const weeks = Array.from(new Set(RAW.map(d => d.Week))).map(Number).filter(Number.isFinite);
-  if (weeks.length) {
-    $('#weekMin') && ($('#weekMin').value = Math.min(...weeks));
-    $('#weekMax') && ($('#weekMax').value = Math.max(...weeks));
-    FILTER.weekMin = Math.min(...weeks);
-    FILTER.weekMax = Math.max(...weeks);
-  }
-  FILTER.regions=[]; FILTER.areas=[]; FILTER.types=[]; FILTER.brands=[];
-  renderAll();
+// initFilters minimal (hanya jika belum ada): isi dropdown & week range
+if (typeof window.initFilters !== 'function') {
+  window.initFilters = function initFiltersMinimal(raw) {
+    if (!Array.isArray(raw)) return;
+    const uniqSorted = (arr) => Array.from(new Set(arr)).filter(Boolean).sort((a,b)=>(''+a).localeCompare(b));
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const fillSel = (id, vals) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = vals.map(v => `<option value="${v}">${v}</option>`).join('');
+      el.selectedIndex = -1; // default semua
+    };
+    const weeks = uniqSorted(raw.map(r => r.Week)).map(Number).filter(Number.isFinite);
+    if (weeks.length) { setVal('weekMin', Math.min(...weeks)); setVal('weekMax', Math.max(...weeks)); }
+    fillSel('regionSel', uniqSorted(raw.map(r => r.Region)));
+    fillSel('areaSel',   uniqSorted(raw.map(r => r.Area)));
+    fillSel('typeSel',   uniqSorted(raw.map(r => r.Type)));
+    fillSel('brandSel',  uniqSorted(raw.map(r => r.Brand)));
+    if (typeof window.updateSelInfo === 'function') window.updateSelInfo();
+  };
 }
 
-function applyFilter(data) {
-  const {weekMin, weekMax, regions, areas, types, brands} = FILTER;
-  return data.filter(d => {
-    if (d.Week && (weekMin != null && d.Week < weekMin)) return false;
-    if (d.Week && (weekMax != null && d.Week > weekMax)) return false;
-    if (regions.length && !regions.includes(d.Region)) return false;
-    if (areas.length && !areas.includes(d.Area)) return false;
-    if (types.length && !types.includes(d.Type)) return false;
-    if (brands.length && !brands.includes(d.Brand)) return false;
-    return true;
+// Wiring tombol/filter agar memicu updateAll/renderAll
+function __wireEventsForUpdateAll() {
+  const call = () => {
+    if (typeof window.renderAll === 'function') return window.renderAll();
+    if (typeof window.updateAll === 'function') return window.updateAll();
+  };
+
+  const applyBtn = document.getElementById('applyBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  if (applyBtn) applyBtn.addEventListener('click', call);
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    ['regionSel','areaSel','typeSel','brandSel'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.selectedIndex = -1;
+    });
+    if (typeof window.updateSelInfo === 'function') window.updateSelInfo();
+    call();
+  });
+
+  // Unit toggle
+  document.querySelectorAll('input[name="unit"]').forEach(radio => {
+    radio.addEventListener('change', call);
+  });
+
+  // Dropdown change → render ulang
+  ;['regionSel','areaSel','typeSel','brandSel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+      if (typeof window.updateSelInfo === 'function') window.updateSelInfo();
+      call();
+    });
+  });
+
+  // Resize chart (jika object chart global tersedia)
+  window.addEventListener('resize', () => {
+    try {
+      if (window.trendChart?.resize)   window.trendChart.resize();
+      if (window.devChart?.resize)     window.devChart.resize();
+      if (window.scatterChart?.resize) window.scatterChart.resize();
+    } catch {}
   });
 }
+
 
 /* ===================== AGREGASI & KPI ===================== */
 function groupByWeek(data) {
@@ -1458,7 +1437,7 @@ function __wireEventsForUpdateAll() {
   });
 }
 
-
+<script type="module">
 // ===== Guard agar tidak double-run =====
 if (!window.__TSV_BOOTSTRAPPED__) {
   window.__TSV_BOOTSTRAPPED__ = true;
@@ -1470,44 +1449,37 @@ async function bootstrap() {
   try {
     if (statusEl) statusEl.textContent = 'Memuat Data Penjualan (TXT)…';
 
-    // Load & parse dari RAW
+    // 1) Load & parse via RAW (V3 style)
     const data = await loadDataFromTXT();
     console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
     if (!Array.isArray(data)) {
-      if (statusEl) statusEl.textContent = 'Format data tidak sesuai (bukan array).';
       console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+      if (statusEl) statusEl.textContent = 'Format data tidak sesuai.';
       return;
     }
     console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
 
-    // Simpan ke global agar fungsi filterData()/aggByWeek() bisa akses
+    // 2) Simpan agar pipeline V2 bisa akses (filterData/aggByWeek dst.)
     window.RAW = data;
 
-    // Siapkan filter UI & event, lalu render awal
+    // 3) Init filter UI (pakai yang ada; kalau tidak ada, pakai minimal)
     if (typeof window.initFilters === 'function') window.initFilters(window.RAW);
+
+    // 4) Wire events agar tombol/filter panggil updateAll()
     __wireEventsForUpdateAll();
 
-    if (typeof window.renderAll === 'function') {
-      window.renderAll();
-    } else if (typeof window.updateAll === 'function') {
-      window.updateAll();
-    }
+    // 5) Render pertama
+    if (typeof window.renderAll === 'function') window.renderAll();
+    else if (typeof window.updateAll === 'function') window.updateAll();
 
+    // 6) Status
     if (statusEl) statusEl.textContent = `Siap • ${data.length.toLocaleString('id-ID')} baris`;
   } catch (err) {
     console.error('[BOOTSTRAP] Gagal:', err);
-    if (statusEl) statusEl.textContent = 'Gagal memuat data. Cek Console / URL RAW.';
+    if (statusEl) statusEl.textContent = 'Gagal memuat data. Cek Console/RAW URL.';
   }
 }
 
-// (opsional) expose untuk manual re-run di console
-window.__bootstrap = bootstrap;
-
-// (opsional) Hook error global saat debug
-window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
-window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
-
-	
 </script>
 
 	
@@ -1522,6 +1494,7 @@ window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJEC
 
 </body>
 </html>
+
 
 
 
