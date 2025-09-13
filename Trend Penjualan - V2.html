@@ -378,6 +378,9 @@ const GH_SOURCE = {
   file:   'Data Penjualan.xlsx'  // nama file Excel di root yg sama dgn HTML
 };
 
+// Default unit global agar ada sebelum autoload
+window.unit ??= 'pack';
+	
 // Helper membaca CSS variable, anti-duplicate (satu kali saja)
 window.cssVal ??= function(name, fallback = '') {
   try {
@@ -505,16 +508,14 @@ document.dispatchEvent(new CustomEvent('data-ready', {
 };
 	
 // === Guard untuk memastikan updateAll jalan hanya saat data siap ===
+
 (function(){
   if (typeof window.updateAll !== 'function') return;
-
   const _orig = window.updateAll;
   window.updateAll = function(){
-    if (!window.RAW || !Array.isArray(window.RAW) || window.RAW.length === 0) {
-      console.warn('[updateAll] RAW belum siap. Menunggu event "data-ready"...');
-      document.addEventListener('data-ready', () => {
-        try { _orig(); } catch(e){ console.error('[updateAll] gagal setelah data-ready:', e); }
-      }, { once:true });
+    if (!window.RAW || !window.RAW.length) {
+      console.warn('[updateAll] RAW belum siap. Menunggu data-ready...');
+      document.addEventListener('data-ready', ()=>{ try{ _orig(); }catch(e){ console.error(e); } }, {once:true});
       return;
     }
     return _orig.apply(this, arguments);
@@ -706,9 +707,36 @@ function updateChips(){
   const elBrand  = document.getElementById('brand');
 
   // Unit buttons
-  document.getElementById('unitPack').onclick = ()=>{unit='pack'; swapUnit(); updateAll();};
-  document.getElementById('unitStick').onclick = ()=>{unit='stick'; swapUnit(); updateAll();};
-  function swapUnit(){
+  //document.getElementById('unitPack').onclick = ()=>{unit='pack'; swapUnit(); updateAll();};
+  //document.getElementById('unitStick').onclick = ()=>{unit='stick'; swapUnit(); updateAll();};
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const btnPack  = document.getElementById('unitPack');
+  const btnStick = document.getElementById('unitStick');
+  if (!btnPack || !btnStick) return; // jika tombol tidak ada, lewati
+
+  // Sinkronkan state awal tombol dengan window.unit
+  btnPack.classList.toggle('active',  window.unit === 'pack');
+  btnStick.classList.toggle('active', window.unit === 'stick');
+
+  btnPack.onclick = ()=>{
+    if (window.unit === 'pack') return;
+    window.unit = 'pack';
+    btnPack.classList.add('active');
+    btnStick.classList.remove('active');
+    if (typeof window.updateAll === 'function') updateAll();
+  };
+
+  btnStick.onclick = ()=>{
+    if (window.unit === 'stick') return;
+    window.unit = 'stick';
+    btnStick.classList.add('active');
+    btnPack.classList.remove('active');
+    if (typeof window.updateAll === 'function') updateAll();
+  };
+});
+	
+	function swapUnit(){
     document.getElementById('unitPack').classList.toggle('active', unit==='pack');
     document.getElementById('unitStick').classList.toggle('active', unit==='stick');
   }
@@ -902,6 +930,12 @@ function initChoices(){
   updateChips();
 }
 
+window.getVal ??= function getVal(row, key){
+  // key: 'ES' | 'FC' | 'SP' | 'SV'
+  const suffix = (window.unit === 'pack') ? '_P' : '_T';
+  const val = row[`${key}${suffix}`];
+  return Number.isFinite(val) ? val : (+val || 0);
+};
   // ============ Filtering & Aggregation ============
   const getSel = (ch)=> (ch ? ch.getValue(true) : []);
 function filterData(){
@@ -927,15 +961,19 @@ function filterData(){
 }
   const getVal = (r, k)=> unit==='pack' ? r[`${k}_P`] : r[`${k}_T`];
 
-  function aggByWeek(rows){
-    const m=new Map();
-    for(const r of rows){
-      const wk=r.Week; if(!m.has(wk)) m.set(wk,{Week:wk, ES:0, FC:0, SP:0, SV:0});
-      const o=m.get(wk);
-      o.ES+=getVal(r,'ES'); o.FC+=getVal(r,'FC'); o.SP+=getVal(r,'SP'); o.SV+=getVal(r,'SV');
-    }
-    return [...m.values()].sort((a,b)=>a.Week-b.Week);
+function aggByWeek(rows){
+  const m = new Map();
+  for (const r of rows){
+    const wk = r.Week|0;
+    if (!m.has(wk)) m.set(wk, { Week: wk, ES:0, FC:0, SP:0, SV:0 });
+    const o = m.get(wk);
+    o.ES += window.getVal(r, 'ES');
+    o.FC += window.getVal(r, 'FC');
+    o.SP += window.getVal(r, 'SP');
+    o.SV += window.getVal(r, 'SV');
   }
+  return [...m.values()].sort((a,b)=>a.Week - b.Week);
+}
   function aggDev(rows){
     const w=aggByWeek(rows);
     return w.map(d=>({Week:d.Week, dFC_SV:d.FC-d.SV, dSP_SV:d.SP-d.SV, dFC_SP:d.FC-d.SP}));
@@ -1179,6 +1217,27 @@ window.updateAll = function(){
 };
 </script>
 
+<script>
+window.updateAll = function(){
+  if (!window.RAW || !Array.isArray(window.RAW) || window.RAW.length === 0) {
+    console.warn('[Diag] window.RAW kosong atau belum terisi');
+    return;
+  }
+  console.log('[Diag] unit =', window.unit);
+
+  const rows = filterData();
+  const byW  = aggByWeek(rows);
+
+  // ... panggilan render seperti sebelumnya ...
+  renderMain(byW);
+  renderDev(aggDev(rows));
+  renderSummary(byW);
+  renderTop(rows);
+  renderESvsSV(byW);
+  renderForecast(byW);
+  renderTicker(byW);
+};
+</script>
 
 <footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
   create by: EJV Team
@@ -1187,6 +1246,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
