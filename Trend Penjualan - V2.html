@@ -1000,7 +1000,7 @@ function renderTicker(byW){
 // ====== UTIL ======
 function normalizeHeader(h) {
   return String(h || '')
-    .replace(/^\uFEFF/, '')     // buang BOM di header pertama
+    .replace(/^\uFEFF/, '')   // buang BOM di header pertama
     .toLowerCase()
     .replace(/\s+/g, '')
     .replace(/[()\-\/\.]/g, '')
@@ -1017,9 +1017,7 @@ const clean = s => String(s ?? '').trim();
 
 // ====== PARSER TSV ======
 function parseTSV(text) {
-  // Buang BOM di awal file jika ada
-  text = text.replace(/^\uFEFF/, '');
-
+  text = text.replace(/^\uFEFF/, ''); // buang BOM di awal file jika ada
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
   if (!lines.length) return [];
 
@@ -1027,26 +1025,25 @@ function parseTSV(text) {
   const headersNorm = rawHeaders.map(normalizeHeader);
   const idx = Object.fromEntries(headersNorm.map((h, i) => [h, i]));
 
-  // Validasi header minimal
-  const requiredKeys = [
+  // minimal header yang diharapkan
+  const required = [
     'week','region','plant','area','brand','type',
     'openingstockpac','endstockpac','fcpac','sppac','svpac',
     'openingstockthstick','endstockthstick','fcthstick','spthstick','svthstick'
   ];
-  const missing = requiredKeys.filter(k => !(k in idx));
+  const missing = required.filter(k => !(k in idx));
   if (missing.length) {
     console.warn('[TSV] Header tidak ditemukan:', missing);
-    console.warn('[TSV] Header terdeteksi:', rawHeaders);
+    console.warn('[TSV] Header terdeteksi (mentah):', rawHeaders);
   }
 
-  const recs = [];
+  const out = [];
   for (let r = 1; r < lines.length; r++) {
-    const cells = lines[r].split('\t'); // biarkan kosong jika kolom kurang
+    const cells = lines[r].split('\t');
     const g = key => {
       const i = idx[key];
-      return i != null ? cells[i] ?? '' : '';
+      return i != null ? (cells[i] ?? '') : '';
     };
-
     const row = {
       Week: toNum(g('week')),
       Region: clean(g('region')),
@@ -1054,57 +1051,58 @@ function parseTSV(text) {
       Area: clean(g('area')),
       Brand: clean(g('brand')),
       Type: clean(g('type')),
-
-      // Pac
       OS_Pac: toNum(g('openingstockpac')),
       ES_Pac: toNum(g('endstockpac')),
       FC_Pac: toNum(g('fcpac')),
       SP_Pac: toNum(g('sppac')),
       SV_Pac: toNum(g('svpac')),
-
-      // TH Stick
       OS_TH: toNum(g('openingstockthstick')),
       ES_TH: toNum(g('endstockthstick')),
       FC_TH: toNum(g('fcthstick')),
       SP_TH: toNum(g('spthstick')),
       SV_TH: toNum(g('svthstick')),
     };
-
-    // turunan untuk grafik deviasi (pakai Pac sebagai default)
     row.Dev_FC_minus_SV = row.FC_Pac - row.SV_Pac;
     row.Dev_SP_minus_SV = row.SP_Pac - row.SV_Pac;
     row.Dev_FC_minus_SP = row.FC_Pac - row.SP_Pac;
-
-    recs.push(row);
+    out.push(row);
   }
-  return recs;
+  return out;
 }
 
-// ====== LOADER (PATH ROBUST UNTUK GITHUB PAGES) ======
+// ====== LOADER (robust untuk Pages/subfolder) ======
 async function loadDataFromTXT() {
-  // URL relatif terhadap file HTML saat ini (aman untuk Pages/subfolder)
-  const url = new URL('./Data Penjualan.txt', import.meta.url);
+  const fileName = 'Data Penjualan.txt'; // pastikan namanya persis
+  // Bangun URL relatif terhadap halaman saat ini (aman untuk subfolder)
+  const url = new URL(encodeURI('./' + fileName), window.location.href);
   const resp = await fetch(url, { cache: 'no-store' });
-  if (!resp.ok) {
-    throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
-  }
-  let text = await resp.text();
+  if (!resp.ok) throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
+  const text = await resp.text();
   return parseTSV(text);
 }
 
-// ====== BOOTSTRAP (contoh pemakaian) ======
+// ====== BOOTSTRAP ======
 document.addEventListener('DOMContentLoaded', async () => {
-  const $status = document.getElementById('status');
+  const $status = document.getElementById('status') || null;
   try {
     $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
     const data = await loadDataFromTXT();
-    console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-    $status && ($status.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris`);
-    // TODO: panggil pipeline Anda, mis. initDashboard(data);
-    if (window.initDashboard) window.initDashboard(data);
+
+    // Guard: jangan panggil slice kalau bukan array
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+    if (Array.isArray(data)) {
+      console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+    } else {
+      console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+    }
+
+    $status && ($status.textContent = `Data siap: ${data.length?.toLocaleString('id-ID') || 0} baris`);
+    if (window.initDashboard && Array.isArray(data)) {
+      window.initDashboard(data);
+    }
   } catch (err) {
-    console.error(err);
-    $status && ($status.textContent = 'Gagal memuat data. Cek konsol/devtools.');
+    console.error('[TSV] Error loader:', err);
+    $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
   }
 });
 </script>
@@ -1116,3 +1114,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 </body>
 </html>
+
