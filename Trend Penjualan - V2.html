@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Dashboard Penjualan — Mingguan</title>
 
-<base href="/TrendSV/">
-
   <!-- Charts & Excel Parser -->
    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -369,86 +367,99 @@ header{
 </div>
 
 <script>
-const DATA_URL = './Data%20Penjualan.txt';
-</script>
 
-<script>
-async function fetchTSV(url) {
-  const res = await fetch(url, { cache: 'no-cache' }); // revalidate ETag
-  if (!res.ok) throw new Error(`Gagal fetch ${url}: HTTP ${res.status}`);
-  const raw = await res.text();
-  return raw.replace(/^\uFEFF/, ''); // strip BOM jika ada
+/***** ====== AUTO SOURCE SETUP (Pages vs Local Dev) ====== *****/
+
+// Ubah sesuai repo Mas:
+const GH_SOURCE = {
+  user:   'prayogoangga', // <- ganti: username GitHub
+  repo:   'TrendSV',    // <- ganti: nama repository
+  branch: 'main',         // <- ganti: nama branch (mis. 'main' / 'master')
+  file:   'Data Penjualan.xlsx' // nama file Excel di root yg sama dgn HTML
+};
+
+// Deteksi environment
+function isGhPagesHost() {
+  // Default GitHub Pages domain (username.github.io) -> true
+  if (location.hostname.endsWith('.github.io')) return true;
+  // (Opsional) override via query ?pages=1 atau window flag
+  const q = new URLSearchParams(location.search);
+  if (q.get('pages') === '1') return true;
+  if (window.DASH_FORCE_PAGES === true) return true;
+  return false;
 }
 
-function parseTSV(text, { autoType = true } = {}) {
-  // Pecah per-baris, buang baris kosong di akhir
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (lines.length === 0) return [];
+function isLocalDev() {
+  return (
+    location.protocol === 'file:' ||
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1'
+  );
+}
 
-  // Header
-  const headers = lines[0].split('\t').map(h => h.trim());
-
-  // Baris data
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split('\t');
-    const obj = {};
-    for (let j = 0; j < headers.length; j++) {
-      let v = (cols[j] ?? '').trim();
-
-      if (autoType) {
-        // konversi angka (termasuk desimal), kosong -> ''
-        if (/^-?\d+(\.\d+)?$/.test(v)) {
-          v = Number(v);
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          // YYYY-MM-DD -> Date
-          const d = new Date(v + 'T00:00:00');
-          if (!isNaN(d)) v = d;
-        } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(v)) {
-          // DD/MM/YYYY atau MM/DD/YYYY — opsional, sesuaikan pola Anda
-          // Biarkan string jika format tanggal tidak pasti
-        }
-      }
-
-      obj[headers[j] || `col_${j+1}`] = v;
-    }
-    rows.push(obj);
+// Bangun URL default sesuai lingkungan
+function defaultDataUrl() {
+  if (isGhPagesHost()) {
+    // Same-origin (GitHub Pages Project Pages): cukup relatif path
+    // Hati-hati: jangan pakai '/' di depan, karena akan buang prefix '/repo'
+    return `./${encodeURIComponent(GH_SOURCE.file)}`;
   }
-  return rows;
+  // Selain Pages (termasuk dev lokal): gunakan RAW GitHub
+  const { user, repo, branch, file } = GH_SOURCE;
+  return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
 }
 
-async function loadDataAndInit() {
-  try {
-    const text = await fetchTSV(DATA_URL);
-    const data = parseTSV(text, { autoType: true });
-
-    console.log('Jumlah baris:', data.length);
-    console.log('Contoh data:', data.slice(0, 3));
-    document.getElementById('status')?.replaceChildren();
-
-    // TODO: panggil fungsi render chart/tabel Anda di sini.
-    // Misal:
-    // renderChart(data);
-    // renderTable(data);
-
-  } catch (err) {
-    console.error(err);
-    const el = document.getElementById('status');
-    if (el) {
-      el.innerHTML = `<div style="color:#b00020">
-        Gagal memuat data: ${String(err.message || err)}
-      </div>`;
-    }
+// (Opsional) bypass cache saat dev
+function withCacheBuster(url) {
+  if (isLocalDev()) {
+    const u = new URL(url, location.href);
+    u.searchParams.set('_v', Date.now().toString());
+    return u.toString();
   }
+  return url;
 }
 
-// Jalankan saat halaman siap
-document.addEventListener('DOMContentLoaded', loadDataAndInit);
-</script>
+// Override cepat via query:
+// ?mode=pages -> paksa path relatif
+// ?mode=raw   -> paksa RAW GitHub
+function defaultDataUrl() {
+  const q = new URLSearchParams(location.search);
+  const mode = (q.get('mode') || '').toLowerCase();
+  if (mode === 'pages') {
+    return `./${encodeURIComponent(GH_SOURCE.file)}`;
+  }
+  if (mode === 'raw') {
+    const { user, repo, branch, file } = GH_SOURCE;
+    return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
+  }
+  // — kalau tidak ada override, pakai deteksi normal:
+  if (isGhPagesHost()) {
+    return `./${encodeURIComponent(GH_SOURCE.file)}`;
+  }
+  const { user, repo, branch, file } = GH_SOURCE;
+  return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
+}
 
-<div id="status">Memuat data…</div>
 	
-<script>
+// fungsi auto load	
+async function autoLoadDefaultExcel() {
+  try {
+    const url = withCacheBuster(defaultDataUrl());
+    const res = await fetch(url, { method: 'GET' });
+    if (!res.ok) throw new Error(`Fetch gagal (${res.status})`);
+    const ab = await res.arrayBuffer();
+    await loadFromArrayBuffer(ab, url); // ← fungsi loader Mas
+    console.info('[AutoLoad] Sukses memuat data dari:', url);
+  } catch (err) {
+    console.warn('[AutoLoad] Gagal:', err);
+    // Tidak fatal—user masih bisa pakai tombol Upload/URL manual
+  }
+}
+
+// Jalankan otomatis setelah halaman siap
+window.addEventListener('load', autoLoadDefaultExcel);
+
+	
   // ============ THEME ============
   const themeBtn = document.getElementById('themeToggle');
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1079,4 +1090,3 @@ function renderTicker(byW){
 
 </body>
 </html>
-
