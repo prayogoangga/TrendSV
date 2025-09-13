@@ -794,7 +794,6 @@ async function bootstrap() {
     console.error('[TSV] Error loader:', err);
     $status && ($status.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.');
   }
-}
 
 // (opsional) Hook error global saat debug
 window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
@@ -1437,6 +1436,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
