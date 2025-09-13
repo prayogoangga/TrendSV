@@ -8,6 +8,7 @@
   <!-- Charts & Excel Parser -->
    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 
   <!-- Multi-select dengan search -->
  <link href="https://cdn.jsdelivr.net/npm/choicesces.min.css" rel="stylesheet">
@@ -365,11 +366,198 @@ header{
     </section>
   </main>
   
-<div id="status" style="font:14px/1.4 system-ui, sans-serif;color:#444;margin:.5rem 0;">
-  Menunggu memuat data…
-</div>
+<div id="status" class="status">Menyiapkan…</div>
 
 </div>
+
+<script type="module">
+// ====== KONFIGURASI ======
+const DATA_FILE = 'Data Penjualan.txt'; // jika diganti: 'data-penjualan.tsv'
+
+// ====== UTIL ======
+const $  = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+function normalizeHeader(h) {
+  return String(h || '')
+    .replace(/^\uFEFF/, '')   // buang BOM kalau ada
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[()\-\/\.]/g, '')
+    .replace(/thstick/g, 'thstick');
+}
+function toNum(v) {
+  if (v == null) return 0;
+  const s = String(v).trim().replace(/,/g,'');
+  if (!s || s.toLowerCase() === 'na' || s.toLowerCase() === 'null') return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+const clean = s => String(s ?? '').trim();
+
+// ====== PARSER TSV ======
+function parseTSV(text) {
+  text = text.replace(/^\uFEFF/, ''); // buang BOM di awal file
+
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (!lines.length) return [];
+
+  const rawHeaders  = lines[0].split('\t').map(h => h.trim());
+  const headersNorm = rawHeaders.map(normalizeHeader);
+  const idx = Object.fromEntries(headersNorm.map((h, i) => [h, i]));
+
+  // Header minimal yang diharapkan
+  const required = [
+    'week','region','plant','area','brand','type',
+    'openingstockpac','endstockpac','fcpac','sppac','svpac',
+    'openingstockthstick','endstockthstick','fcthstick','spthstick','svthstick'
+  ];
+  const missing = required.filter(k => !(k in idx));
+  if (missing.length) {
+    console.warn('[TSV] Header tidak ditemukan:', missing);
+    console.warn('[TSV] Header terdeteksi (mentah):', rawHeaders);
+  }
+
+  const out = [];
+  for (let r = 1; r < lines.length; r++) {
+    const cells = lines[r].split('\t');
+    const g = key => {
+      const i = idx[key];
+      return i != null ? (cells[i] ?? '') : '';
+    };
+    const row = {
+      Week: toNum(g('week')),
+      Region: clean(g('region')),
+      Plant: clean(g('plant')),
+      Area: clean(g('area')),
+      Brand: clean(g('brand')),
+      Type:  clean(g('type')),
+
+      // Pac
+      OS_Pac: toNum(g('openingstockpac')),
+      ES_Pac: toNum(g('endstockpac')),
+      FC_Pac: toNum(g('fcpac')),
+      SP_Pac: toNum(g('sppac')),
+      SV_Pac: toNum(g('svpac')),
+
+      // TH Stick
+      OS_TH: toNum(g('openingstockthstick')),
+      ES_TH: toNum(g('endstockthstick')),
+      FC_TH: toNum(g('fcthstick')),
+      SP_TH: toNum(g('spthstick')),
+      SV_TH: toNum(g('svthstick')),
+    };
+
+    // Turunan deviasi (buat graf deviasi kalau ada)
+    row.Dev_FC_minus_SV = row.FC_Pac - row.SV_Pac;
+    row.Dev_SP_minus_SV = row.SP_Pac - row.SV_Pac;
+    row.Dev_FC_minus_SP = row.FC_Pac - row.SP_Pac;
+
+    out.push(row);
+  }
+  return out;
+}
+// ====== LOADER (robust untuk Pages/subfolder) ======
+async function loadDataFromTXT() {
+  const url = new URL(encodeURI('./' + DATA_FILE), window.location.href);
+  const resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
+  const text = await resp.text();
+  return parseTSV(text);
+}
+
+// ====== BOOTSTRAP ======
+document.addEventListener('DOMContentLoaded', async () => {
+  const $status = document.getElementById('status') || null;
+  try {
+    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
+    const data = await loadDataFromTXT();
+
+	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+if (Array.isArray(data)) {
+  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+} else {
+  console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+}
+
+// 👉 Diagnostik lanjutan:
+console.log('[APP] typeof initDashboard =', typeof window.initDashboard);
+try {
+  if (window.initDashboard && typeof window.initDashboard === 'function') {
+    window.initDashboard(data);            // render milik Angga
+  } else {
+    console.warn('[APP] initDashboard tidak ditemukan. Lewati render khusus.');
+  }
+} catch (e) {
+  console.error('[APP] Error di dalam initDashboard:', e);
+}
+
+    // Guard: jangan panggil slice kalau bukan array
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+    if (Array.isArray(data)) {
+      console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+    } else {
+      console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+    }
+
+    $status && ($status.textContent = `Data siap: ${data.length?.toLocaleString('id-ID') || 0} baris`);
+    if (window.initDashboard && Array.isArray(data)) {
+      window.initDashboard(data);
+    }
+  } catch (err) {
+    console.error('[TSV] Error loader:', err);
+    $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
+  }
+});
+
+// Guard supaya tidak double-run kalau script terpasang 2x
+if (!window.__TSV_BOOTSTRAPPED__) {
+  window.__TSV_BOOTSTRAPPED__ = true;
+  document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+}
+
+async function bootstrap() {
+  const $status = document.getElementById('status') || null;
+  try {
+    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
+    const data = await loadDataFromTXT();
+
+    // Log diagnosa ringan
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+    if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+
+    // Siapkan fallback kalau initDashboard belum ada
+    if (typeof window.initDashboard !== 'function') {
+      console.warn('[APP] initDashboard tidak ditemukan — pakai fallback bawaan.');
+      window.initDashboard = (rows) => {
+        if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
+          // Jalankan pipeline V2 Anda
+          window.RAW = rows;
+          window.initFilters(window.RAW);
+          window.renderAll();
+          $status && ($status.textContent = `Siap • ${rows.length.toLocaleString('id-ID')} baris`);
+        } else {
+          // Fallback minimal: tampilkan jumlah baris agar tidak blank
+          $status && ($status.textContent = `Data siap: ${rows.length.toLocaleString('id-ID')} baris (renderer khusus belum disediakan)`);
+        }
+      };
+    }
+
+    // Panggil renderer (asli atau fallback)
+    window.initDashboard(data);
+
+  } catch (err) {
+    console.error('[TSV] Error loader:', err);
+    $status && ($status.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.');
+  }
+}
+
+// (opsional) Hook error global saat debug
+window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
+window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
+
+
+</script>
 
 <script>
   // ============ THEME ============
@@ -996,144 +1184,7 @@ function renderTicker(byW){
   
   </script>
   
-<script type="module">
-// ====== UTIL ======
-function normalizeHeader(h) {
-  return String(h || '')
-    .replace(/^\uFEFF/, '')   // buang BOM di header pertama
-    .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[()\-\/\.]/g, '')
-    .replace(/thstick/g, 'thstick');
-}
-function toNum(v) {
-  if (v == null) return 0;
-  const s = String(v).trim().replace(/,/g,'');
-  if (s === '' || s.toLowerCase() === 'na' || s.toLowerCase() === 'null') return 0;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
-}
-const clean = s => String(s ?? '').trim();
 
-// ====== PARSER TSV ======
-function parseTSV(text) {
-  text = text.replace(/^\uFEFF/, ''); // buang BOM di awal file jika ada
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-  if (!lines.length) return [];
-
-  const rawHeaders = lines[0].split('\t').map(h => h.trim());
-  const headersNorm = rawHeaders.map(normalizeHeader);
-  const idx = Object.fromEntries(headersNorm.map((h, i) => [h, i]));
-
-  // minimal header yang diharapkan
-  const required = [
-    'week','region','plant','area','brand','type',
-    'openingstockpac','endstockpac','fcpac','sppac','svpac',
-    'openingstockthstick','endstockthstick','fcthstick','spthstick','svthstick'
-  ];
-  const missing = required.filter(k => !(k in idx));
-  if (missing.length) {
-    console.warn('[TSV] Header tidak ditemukan:', missing);
-    console.warn('[TSV] Header terdeteksi (mentah):', rawHeaders);
-  }
-
-  const out = [];
-  for (let r = 1; r < lines.length; r++) {
-    const cells = lines[r].split('\t');
-    const g = key => {
-      const i = idx[key];
-      return i != null ? (cells[i] ?? '') : '';
-    };
-    const row = {
-      Week: toNum(g('week')),
-      Region: clean(g('region')),
-      Plant: clean(g('plant')),
-      Area: clean(g('area')),
-      Brand: clean(g('brand')),
-      Type: clean(g('type')),
-      OS_Pac: toNum(g('openingstockpac')),
-      ES_Pac: toNum(g('endstockpac')),
-      FC_Pac: toNum(g('fcpac')),
-      SP_Pac: toNum(g('sppac')),
-      SV_Pac: toNum(g('svpac')),
-      OS_TH: toNum(g('openingstockthstick')),
-      ES_TH: toNum(g('endstockthstick')),
-      FC_TH: toNum(g('fcthstick')),
-      SP_TH: toNum(g('spthstick')),
-      SV_TH: toNum(g('svthstick')),
-    };
-    row.Dev_FC_minus_SV = row.FC_Pac - row.SV_Pac;
-    row.Dev_SP_minus_SV = row.SP_Pac - row.SV_Pac;
-    row.Dev_FC_minus_SP = row.FC_Pac - row.SP_Pac;
-    out.push(row);
-  }
-  return out;
-}
-
-// ====== LOADER (robust untuk Pages/subfolder) ======
-async function loadDataFromTXT() {
-  const fileName = 'Data Penjualan.txt'; // pastikan namanya persis
-  // Bangun URL relatif terhadap halaman saat ini (aman untuk subfolder)
-  const url = new URL(encodeURI('./' + fileName), window.location.href);
-  const resp = await fetch(url, { cache: 'no-store' });
-  if (!resp.ok) throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
-  const text = await resp.text();
-  return parseTSV(text);
-}
-
-// ====== BOOTSTRAP ======
-document.addEventListener('DOMContentLoaded', async () => {
-  const $status = document.getElementById('status') || null;
-  try {
-    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
-    const data = await loadDataFromTXT();
-
-	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-if (Array.isArray(data)) {
-  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-} else {
-  console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
-}
-
-// 👉 Diagnostik lanjutan:
-console.log('[APP] typeof initDashboard =', typeof window.initDashboard);
-try {
-  if (window.initDashboard && typeof window.initDashboard === 'function') {
-    window.initDashboard(data);            // render milik Angga
-  } else {
-    console.warn('[APP] initDashboard tidak ditemukan. Lewati render khusus.');
-  }
-} catch (e) {
-  console.error('[APP] Error di dalam initDashboard:', e);
-}
-
-    // Guard: jangan panggil slice kalau bukan array
-    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-    if (Array.isArray(data)) {
-      console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-    } else {
-      console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
-    }
-
-    $status && ($status.textContent = `Data siap: ${data.length?.toLocaleString('id-ID') || 0} baris`);
-    if (window.initDashboard && Array.isArray(data)) {
-      window.initDashboard(data);
-    }
-  } catch (err) {
-    console.error('[TSV] Error loader:', err);
-    $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
-  }
-});
-
-	
-window.addEventListener('error', e => {
-  console.error('[GLOBAL ERROR]', e.message, e.error);
-});
-window.addEventListener('unhandledrejection', e => {
-  console.error('[PROMISE REJECTION]', e.reason);
-});
-
-</script>
 
 <footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
   create by: EJV Team
@@ -1142,5 +1193,6 @@ window.addEventListener('unhandledrejection', e => {
 
 </body>
 </html>
+
 
 
