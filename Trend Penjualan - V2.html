@@ -472,7 +472,7 @@ function smoothPlot(divId, traces, layout, config={displayModeBar:false, respons
            abs>=1e3?(n/1e3).toFixed(2)+'K':
            (Math.round(n*100)/100).toString();
   };
-  const esc = (s)=>String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+  const esc = (s)=>String(s).replace(/[&<>"']/g, m=>({ '&':'&&;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
   const pct = (a,b)=> b===0 ? 0 : (a/b*100);
 
 // Tanda naik/turun pada angka; dukung persen
@@ -993,10 +993,9 @@ function renderTicker(byW){
   // Inputs listener
   ['change','input'].forEach(ev => { wminEl.addEventListener(ev, updateAll); wmaxEl.addEventListener(ev, updateAll); });
   
-  </script>
 
+// skrip TXT
 	
-<script type="module">
 // ====== KONFIGURASI ======
 const DATA_FILE = 'Data Penjualan.txt'; // jika diganti: 'data-penjualan.tsv'
 
@@ -1459,9 +1458,7 @@ function __wireEventsForUpdateAll() {
   });
 }
 
-</script>
-	
-<script type="module">
+
 // ===== Guard agar tidak double-run =====
 if (!window.__TSV_BOOTSTRAPPED__) {
   window.__TSV_BOOTSTRAPPED__ = true;
@@ -1525,6 +1522,7 @@ window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJEC
 
 </body>
 </html>
+
 
 
 
