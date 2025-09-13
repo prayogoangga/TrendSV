@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Dashboard Penjualan — Mingguan</title>
 
+<base href="/TrendSV/">
+
   <!-- Charts & Excel Parser -->
    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -366,6 +368,86 @@ header{
   </main>
 </div>
 
+<script>
+const DATA_URL = './Data%20Penjualan.txt';
+</script>
+
+<script>
+async function fetchTSV(url) {
+  const res = await fetch(url, { cache: 'no-cache' }); // revalidate ETag
+  if (!res.ok) throw new Error(`Gagal fetch ${url}: HTTP ${res.status}`);
+  const raw = await res.text();
+  return raw.replace(/^\uFEFF/, ''); // strip BOM jika ada
+}
+
+function parseTSV(text, { autoType = true } = {}) {
+  // Pecah per-baris, buang baris kosong di akhir
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  // Header
+  const headers = lines[0].split('\t').map(h => h.trim());
+
+  // Baris data
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split('\t');
+    const obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      let v = (cols[j] ?? '').trim();
+
+      if (autoType) {
+        // konversi angka (termasuk desimal), kosong -> ''
+        if (/^-?\d+(\.\d+)?$/.test(v)) {
+          v = Number(v);
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          // YYYY-MM-DD -> Date
+          const d = new Date(v + 'T00:00:00');
+          if (!isNaN(d)) v = d;
+        } else if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(v)) {
+          // DD/MM/YYYY atau MM/DD/YYYY — opsional, sesuaikan pola Anda
+          // Biarkan string jika format tanggal tidak pasti
+        }
+      }
+
+      obj[headers[j] || `col_${j+1}`] = v;
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+async function loadDataAndInit() {
+  try {
+    const text = await fetchTSV(DATA_URL);
+    const data = parseTSV(text, { autoType: true });
+
+    console.log('Jumlah baris:', data.length);
+    console.log('Contoh data:', data.slice(0, 3));
+    document.getElementById('status')?.replaceChildren();
+
+    // TODO: panggil fungsi render chart/tabel Anda di sini.
+    // Misal:
+    // renderChart(data);
+    // renderTable(data);
+
+  } catch (err) {
+    console.error(err);
+    const el = document.getElementById('status');
+    if (el) {
+      el.innerHTML = `<div style="color:#b00020">
+        Gagal memuat data: ${String(err.message || err)}
+      </div>`;
+    }
+  }
+}
+
+// Jalankan saat halaman siap
+document.addEventListener('DOMContentLoaded', loadDataAndInit);
+</script>
+
+<div id="status">Memuat data…</div>
+	
 <script>
   // ============ THEME ============
   const themeBtn = document.getElementById('themeToggle');
@@ -997,3 +1079,4 @@ function renderTicker(byW){
 
 </body>
 </html>
+
