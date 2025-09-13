@@ -497,9 +497,26 @@ window.loadFromArrayBuffer ??= async function loadFromArrayBuffer(ab, fileName='
     console.warn('[Loader] updateAll() belum terdefinisi saat loadFromArrayBuffer dipanggil.');
   }
 
-  //console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
+  console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
 };
 
+// === Guard untuk memastikan updateAll jalan hanya saat data siap ===
+(function(){
+  if (typeof window.updateAll !== 'function') return;
+
+  const _orig = window.updateAll;
+  window.updateAll = function(){
+    if (!window.RAW || !Array.isArray(window.RAW) || window.RAW.length === 0) {
+      console.warn('[updateAll] RAW belum siap. Menunggu event "data-ready"...');
+      document.addEventListener('data-ready', () => {
+        try { _orig(); } catch(e){ console.error('[updateAll] gagal setelah data-ready:', e); }
+      }, { once:true });
+      return;
+    }
+    return _orig.apply(this, arguments);
+  };
+})();
+	
 /* ====== AUTO-LOAD DEFAULT EXCEL SESUAI LINGKUNGAN ====== */
 async function autoLoadDefaultExcel(){
   try{
@@ -536,6 +553,9 @@ window.addEventListener('load', autoLoadDefaultExcel);
     updateAll();
   };
 
+
+
+	
   // ============ HELPERS ============
 const layoutBase = () => ({
   margin:{t:10,r:10,l:40,b:40},
@@ -1189,6 +1209,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
