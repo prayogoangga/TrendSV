@@ -772,30 +772,51 @@ try {
 );
 
 // Guard supaya tidak double-run kalau script terpasang 2x
+<script type="module">
+// ===== Guard agar tidak double-run =====
 if (!window.__TSV_BOOTSTRAPPED__) {
   window.__TSV_BOOTSTRAPPED__ = true;
   document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
 }
+
 async function bootstrap() {
-  const $status = $('#status') || null;
+  const statusEl = document.getElementById('status');
   try {
-    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
-    RAW = await loadDataFromTXT();
+    if (statusEl) statusEl.textContent = 'Memuat Data Penjualan (TXT)…';
 
-    console.log('[TSV] tipe data:', Object.prototype.toString.call(RAW));
-    if (Array.isArray(RAW)) console.log('[TSV] Contoh 3 baris:', RAW.slice(0,3));
+    // Muat & parse data TSV
+    const data = await loadDataFromTXT();
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+    if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
 
-    // Siapkan UI & render
-    initFilters(RAW);
-    wireEvents();
-    renderAll();
+    // simpan ke global agar pipeline lama bisa pakai
+    window.RAW = data;
+
+    // Jika pakai Renderer Pack bebas-konflik (V2Pack)
+    if (window.V2Pack) {
+      V2Pack.initFilters(window.RAW);
+      V2Pack.wireEvents();
+      V2Pack.renderAll();
+      if (statusEl) statusEl.textContent = `Siap • ${data.length.toLocaleString('id-ID')} baris`;
+      return;
+    }
+
+    // Jika pakai pipeline V2 klasik (initFilters/renderAll)
+    if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
+      window.initFilters(window.RAW);
+      if (typeof window.wireEvents === 'function') window.wireEvents();
+      window.renderAll();
+      if (statusEl) statusEl.textContent = `Siap • ${data.length.toLocaleString('id-ID')} baris`;
+    } else {
+      // Fallback minimal → halaman tidak blank
+      if (statusEl) statusEl.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris`;
+    }
 
   } catch (err) {
     console.error('[TSV] Error loader:', err);
-    $status && ($status.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.');
+    if (statusEl) statusEl.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.';
   }
 }
-
 // (opsional) Hook error global saat debug
 window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
 window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
@@ -1437,6 +1458,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
