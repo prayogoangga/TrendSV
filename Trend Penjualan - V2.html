@@ -497,7 +497,7 @@ window.loadFromArrayBuffer ??= async function loadFromArrayBuffer(ab, fileName='
     console.warn('[Loader] updateAll() belum terdefinisi saat loadFromArrayBuffer dipanggil.');
   }
 
-  console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
+  //console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
 };
 
 /* ====== AUTO-LOAD DEFAULT EXCEL SESUAI LINGKUNGAN ====== */
@@ -508,7 +508,7 @@ async function autoLoadDefaultExcel(){
     if (!res.ok) throw new Error(`Fetch gagal (${res.status})`);
     const ab = await res.arrayBuffer();
     await window.loadFromArrayBuffer(ab, url); // ← panggil loader global
-    console.info('[AutoLoad] Sukses muat:', url);
+    //console.info('[AutoLoad] Sukses muat:', url);
   }catch(err){
     console.warn('[AutoLoad] Gagal:', err);
     // Tidak fatal: user masih bisa upload manual
@@ -608,7 +608,7 @@ function smoothPlot(divId, traces, layout, config={displayModeBar:false, respons
 
   return Plotly.react(divId, traces, mergedLayout, config);
 }  
-  
+ //===================Batas Atas====================// 
   const toSI = (n)=> {
     if(n==null || isNaN(n)) return '0';
     const abs=Math.abs(n);
@@ -1140,6 +1140,48 @@ function renderTicker(byW){
   ['change','input'].forEach(ev => { wminEl.addEventListener(ev, updateAll); wmaxEl.addEventListener(ev, updateAll); });
 </script>
 
+<script>
+// --- DIAGNOSA: pastikan elemen ada
+['chart_main','chart_dev','chart_es_sv','summary','top_hi','top_lo'].forEach(id=>{
+  if(!document.getElementById(id)){
+    console.error('[Diag] Elemen hilang: #' + id);
+  }
+});
+
+// --- helper aman: eksekusi fungsi render tapi tangkap error
+function safeCall(name, fn){
+  try { fn(); } catch(e){ console.error('[Diag] ' + name + ' gagal:', e); }
+}
+
+// --- override updateAll jadi versi "verbose"
+window.updateAll = function(){
+  if(!window.RAW || !RAW.length){
+    console.warn('[Diag] RAW kosong atau belum terisi');
+    return;
+  }
+  console.log('[Diag] RAW:', RAW.length, 'baris');
+
+  const rows = filterData();
+  console.log('[Diag] Filtered rows:', rows.length);
+
+  const byW  = aggByWeek(rows);
+  console.log('[Diag] aggByWeek:', byW.length, 'minggu',
+              byW.length? ('| W' + byW[0].Week + '…W' + byW[byW.length-1].Week): '');
+
+  // tampilkan sampel 3 baris agar tahu struktur ES/FC/SP/SV
+  console.table(byW.slice(0,3));
+
+  // Render satu per satu dengan proteksi error
+  safeCall('renderMain',     ()=>renderMain(byW));
+  safeCall('renderDev',      ()=>renderDev(aggDev(rows)));
+  safeCall('renderSummary',  ()=>renderSummary(byW));
+  safeCall('renderTop',      ()=>renderTop(rows));
+  safeCall('renderESvsSV',   ()=>renderESvsSV(byW));
+  safeCall('renderForecast', ()=>renderForecast(byW));
+  safeCall('renderTicker',   ()=>renderTicker(byW));
+};
+</script>
+
 <footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
   create by: EJV Team
 </footer>
@@ -1147,5 +1189,6 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
