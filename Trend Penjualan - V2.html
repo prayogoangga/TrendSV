@@ -525,7 +525,7 @@ async function autoLoadDefaultExcel(){
     if (!res.ok) throw new Error(`Fetch gagal (${res.status})`);
     const ab = await res.arrayBuffer();
     await window.loadFromArrayBuffer(ab, url); // ← panggil loader global
-    //console.info('[AutoLoad] Sukses muat:', url);
+    console.info('[AutoLoad] Sukses muat:', url);
   }catch(err){
     console.warn('[AutoLoad] Gagal:', err);
     // Tidak fatal: user masih bisa upload manual
@@ -1209,6 +1209,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
