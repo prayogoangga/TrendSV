@@ -728,50 +728,6 @@ function wireEvents() {
 }
 	
 // ====== BOOTSTRAP ======
-//document.addEventListener('DOMContentLoaded', async () => {
-// const $status = document.getElementById('status') || null;
-//  try {
-//   $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
-//    const data = await loadDataFromTXT();
-
-//	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-//if (Array.isArray(data)) {
-//  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-//} else {
- // console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
-//}
-
-// 👉 Diagnostik lanjutan:
-console.log('[APP] typeof initDashboard =', typeof window.initDashboard);
-try {
-  if (window.initDashboard && typeof window.initDashboard === 'function') {
-    window.initDashboard(data);            // render milik Angga
-  } else {
-    console.warn('[APP] initDashboard tidak ditemukan. Lewati render khusus.');
-  }
-} catch (e) {
-  console.error('[APP] Error di dalam initDashboard:', e);
-}
-
-    // Guard: jangan panggil slice kalau bukan array
-    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-    if (Array.isArray(data)) {
-      console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-    } else {
-      console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
-    }
-
-    $status && ($status.textContent = `Data siap: ${data.length?.toLocaleString('id-ID') || 0} baris`);
-    if (window.initDashboard && Array.isArray(data)) {
-      window.initDashboard(data);
-    }
-} catch (err) {
-    console.error('[TSV] Error loader:', err);
-    $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
-  }
-);
-
-// Guard supaya tidak double-run kalau script terpasang 2x
 <script type="module">
 // ===== Guard agar tidak double-run =====
 if (!window.__TSV_BOOTSTRAPPED__) {
@@ -784,15 +740,15 @@ async function bootstrap() {
   try {
     if (statusEl) statusEl.textContent = 'Memuat Data Penjualan (TXT)…';
 
-    // Muat & parse data TSV
+    // 1) Muat & parse data TSV
     const data = await loadDataFromTXT();
     console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
     if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
 
-    // simpan ke global agar pipeline lama bisa pakai
+    // 2) Simpan global agar pipeline lama bisa pakai
     window.RAW = data;
 
-    // Jika pakai Renderer Pack bebas-konflik (V2Pack)
+    // 3) Jika pakai Renderer Pack bebas-konflik (V2Pack), pakai ini:
     if (window.V2Pack) {
       V2Pack.initFilters(window.RAW);
       V2Pack.wireEvents();
@@ -801,15 +757,15 @@ async function bootstrap() {
       return;
     }
 
-    // Jika pakai pipeline V2 klasik (initFilters/renderAll)
+    // 4) Jika pakai pipeline V2 klasik (initFilters/renderAll)
     if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
       window.initFilters(window.RAW);
       if (typeof window.wireEvents === 'function') window.wireEvents();
       window.renderAll();
       if (statusEl) statusEl.textContent = `Siap • ${data.length.toLocaleString('id-ID')} baris`;
     } else {
-      // Fallback minimal → halaman tidak blank
-      if (statusEl) statusEl.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris`;
+      // 5) Fallback minimal → halaman tidak blank
+      if (statusEl) statusEl.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris (renderer khusus belum tersedia)`;
     }
 
   } catch (err) {
@@ -820,8 +776,6 @@ async function bootstrap() {
 // (opsional) Hook error global saat debug
 window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
 window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
-
-
 </script>
 
 <script>
@@ -1458,6 +1412,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
