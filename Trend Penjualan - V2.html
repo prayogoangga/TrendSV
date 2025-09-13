@@ -490,16 +490,6 @@ window.loadFromArrayBuffer ??= async function loadFromArrayBuffer(ab, fileName='
     initFilterCheckboxes();     // render ulang UI checkbox + search + chips
   }
 
-  // Render dashboard awal
-  if (typeof window.updateAll === 'function') {
-    window.updateAll();
-  } else {
-    console.warn('[Loader] updateAll() belum terdefinisi saat loadFromArrayBuffer dipanggil.');
-  }
-
-  console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
-};
-
 // === Guard untuk memastikan updateAll jalan hanya saat data siap ===
 (function(){
   if (typeof window.updateAll !== 'function') return;
@@ -1209,6 +1199,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
