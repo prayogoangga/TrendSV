@@ -1088,6 +1088,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
     const data = await loadDataFromTXT();
 
+	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+if (Array.isArray(data)) {
+  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+} else {
+  console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+}
+
+// 👉 Diagnostik lanjutan:
+console.log('[APP] typeof initDashboard =', typeof window.initDashboard);
+try {
+  if (window.initDashboard && typeof window.initDashboard === 'function') {
+    window.initDashboard(data);            // render milik Angga
+  } else {
+    console.warn('[APP] initDashboard tidak ditemukan. Lewati render khusus.');
+  }
+} catch (e) {
+  console.error('[APP] Error di dalam initDashboard:', e);
+}
+
     // Guard: jangan panggil slice kalau bukan array
     console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
     if (Array.isArray(data)) {
@@ -1105,6 +1124,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
   }
 });
+
+	
+window.addEventListener('error', e => {
+  console.error('[GLOBAL ERROR]', e.message, e.error);
+});
+window.addEventListener('unhandledrejection', e => {
+  console.error('[PROMISE REJECTION]', e.reason);
+});
+
 </script>
 
 <footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
@@ -1114,4 +1142,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 </body>
 </html>
+
 
