@@ -769,7 +769,7 @@ catch (err) {
     console.error('[TSV] Error loader:', err);
     $status && ($status.textContent = 'Gagal memuat data. Lihat konsol untuk detail.');
   }
-});
+);
 
 // Guard supaya tidak double-run kalau script terpasang 2x
 if (!window.__TSV_BOOTSTRAPPED__) {
@@ -794,6 +794,7 @@ async function bootstrap() {
     console.error('[TSV] Error loader:', err);
     $status && ($status.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.');
   }
+}
 
 // (opsional) Hook error global saat debug
 window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
@@ -1436,6 +1437,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
