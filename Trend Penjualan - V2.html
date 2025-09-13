@@ -727,8 +727,6 @@ function wireEvents() {
   window.addEventListener('resize', () => { trendChart && trendChart.resize(); devChart && devChart.resize(); scatterChart && scatterChart.resize(); });
 }
 	
-// ====== BOOTSTRAP ======
-<script type="module">
 // ===== Guard agar tidak double-run =====
 if (!window.__TSV_BOOTSTRAPPED__) {
   window.__TSV_BOOTSTRAPPED__ = true;
@@ -745,10 +743,10 @@ async function bootstrap() {
     console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
     if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
 
-    // 2) Simpan global agar pipeline lama bisa pakai
+    // 2) Simpan global supaya pipeline bisa pakai
     window.RAW = data;
 
-    // 3) Jika pakai Renderer Pack bebas-konflik (V2Pack), pakai ini:
+    // 3A) Jika Anda pakai Renderer Pack (namespace V2Pack)
     if (window.V2Pack) {
       V2Pack.initFilters(window.RAW);
       V2Pack.wireEvents();
@@ -757,15 +755,15 @@ async function bootstrap() {
       return;
     }
 
-    // 4) Jika pakai pipeline V2 klasik (initFilters/renderAll)
+    // 3B) Jika pakai pipeline V2 klasik (initFilters/renderAll)
     if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
       window.initFilters(window.RAW);
       if (typeof window.wireEvents === 'function') window.wireEvents();
       window.renderAll();
       if (statusEl) statusEl.textContent = `Siap • ${data.length.toLocaleString('id-ID')} baris`;
     } else {
-      // 5) Fallback minimal → halaman tidak blank
-      if (statusEl) statusEl.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris (renderer khusus belum tersedia)`;
+      // 3C) Fallback minimal → biar tidak blank
+      if (statusEl) statusEl.textContent = `Data siap: ${data.length.toLocaleString('id-ID')} baris (renderer belum tersedia)`;
     }
 
   } catch (err) {
@@ -773,11 +771,9 @@ async function bootstrap() {
     if (statusEl) statusEl.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.';
   }
 }
-// (opsional) Hook error global saat debug
-window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
-window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
 </script>
 
+	
 <script>
   // ============ THEME ============
   const themeBtn = document.getElementById('themeToggle');
@@ -1412,6 +1408,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
