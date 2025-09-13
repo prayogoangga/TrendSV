@@ -9,232 +9,367 @@
   <script src="https://unpkg.com"></script>
   <!-- ECharts 5: CDN -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
- <style>  
+  <!-- Charts & Excel Parser -->
+   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Multi-select dengan search -->
+ <link href="https://cdn.jsdelivr.net/npm/choicesces.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+  <!-- Font & Styles -->
+<link href="https://fonts.googleapis.comink" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=00;600;700&display=swap"/>
+  
+ <style>
   :root {
-      --bg: #0b0c0f;
-      --fg: #e5e7eb;
-      --muted: #9ca3af;
-      --card: #111827;
-      --accent: #60a5fa;
-      --ok: #10b981;
-      --warn: #f59e0b;
-      --bad: #ef4444;
-      --link: #93c5fd;
-      --chip: #1f2937;
-      --chip-border: #374151;
-      --border: #1f2937;
-      --shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.25);
-    }
-    .light {
-      --bg: #f8fafc;
-      --fg: #0b0c0f;
-      --muted: #475569;
-      --card: #ffffff;
-      --accent: #2563eb;
-      --ok: #059669;
-      --warn: #d97706;
-      --bad: #dc2626;
-      --link: #1d4ed8;
-      --chip: #eef2ff;
-      --chip-border: #c7d2fe;
-      --border: #e5e7eb;
-      --shadow: 0 1px 0 rgba(0,0,0,0.02) inset, 0 8px 24px rgba(0,0,0,0.06);
-    }
-    html, body { height: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--fg);
-      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      transition: background .25s ease, color .25s ease;
-    }
-    a { color: var(--link); text-decoration: none; }
-    .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 56px; }
-    header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 12px; }
-    h1 { font-size: 20px; margin: 0; }
-    .status { color: var(--muted); font-size: 13px; margin-top: 6px; }
-    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .btn, button {
-      background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 8px 12px;
-      font-weight: 600; cursor: pointer; box-shadow: var(--shadow);
-    }
-    .btn:disabled { opacity: .6; cursor: not-allowed; }
-    .ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
-    .danger { background: var(--bad); }
-    .ok { background: var(--ok); }
-    .toggle {
-      background: transparent; color: var(--fg); border: 1px solid var(--border);
-      padding: 6px 10px; border-radius: 999px; cursor: pointer;
-    }
-    .chip {
-      display: inline-block; padding: 4px 8px; border-radius: 999px; background: var(--chip);
-      border: 1px solid var(--chip-border); color: var(--fg); font-size: 12px; margin-right: 6px;
-    }
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
-    .card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
-      box-shadow: var(--shadow);
-    }
-    .card h3 { margin: 4px 0 10px; font-size: 16px; }
-    .card p { margin: 6px 0; }
-    .cols-6 { grid-column: span 6; }
-    .cols-4 { grid-column: span 4; }
-    .cols-8 { grid-column: span 8; }
-    .cols-12 { grid-column: span 12; }
-    @media (max-width: 980px) {
-      .cols-6, .cols-8, .cols-4 { grid-column: span 12; }
-    }
-    details { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--card); }
-    summary { cursor: pointer; font-weight: 700; }
-    .filters { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(140px, 1fr)); }
-    .filters > div { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 12px; color: var(--muted); }
-    select, input[type="number"] {
-      background: transparent; color: var(--fg); border: 1px solid var(--border);
-      padding: 8px; border-radius: 8px;
-    }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .split { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
-    .kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    .kpi .tile { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
-    .kpi .big { font-size: 20px; font-weight: 800; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    tbody tr:hover { background: rgba(255,255,255,.03); }
-    .note { color: var(--muted); font-size: 12px; }
-    .right { text-align: right; }
-    .chart { width: 100%; height: 360px; }
-    .small { height: 300px; }
-    .sep { height: 1px; background: var(--border); margin: 8px 0; }
-    .footer { color: var(--muted); margin-top: 36px; font-size: 12px; }
+    --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb;
+    --border:#1f2937; --plotBg:#0b1220; --grid:#1f2937; --accent:#3b82f6;
+  }
+  :root[data-theme="light"] {
+    --bg:#f8fafc; --card:#ffffff; --muted:#64748b; --text:#0f172a;
+    --border:#e2e8f0; --plotBg:#ffffff; --grid:#e2e8f0; --accent:#2563eb;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    font-family:'Inter', system-ui, -apple-system, Segoe UI, Roboto;
+    background:var(--bg);
+    color:var(--text);
+  }
+  header {
+    padding:12px 14px;
+    border-bottom:1px solid var(--border);
+    background:color-mix(in oklab, var(--bg), black 5%);
+  }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .wrap { display:grid; grid-template-columns:320px 1fr; gap:14px; padding:12px; }
+  .panel {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+    position:sticky;
+    top:12px;
+    height:calc(100vh - 40px);
+    overflow:auto;
+  }
+  .panel h2 { font-size:14px; margin:6px 0 10px; color:var(--muted); }
+  .field { margin-bottom:10px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  input[type=number], select, .btn {
+    width:100%;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+  }
+  .row { display:flex; gap:8px; }
+  .seg { display:flex; gap:6px; }
+  .seg button {
+    flex:1;
+    padding:8px 10px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .seg button.active { outline:2px solid var(--accent); outline-offset:0; }
+  .content { display:flex; flex-direction:column; gap:14px; }
+  .card {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+  }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .summary p { margin:4px 0; color:var(--text); }
+  .muted { color:var(--muted); }
+  .badge {
+    display:inline-block;
+    padding:2px 6px;
+    font-size:11px;
+    border-radius:9999px;
+    background:color-mix(in oklab, var(--card), black 7%);
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px; border-bottom:1px solid var(--border); font-size:12px; }
+  th { text-align:left; color:var(--text); }
+  .btn { cursor:pointer; }
+  .head-actions { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+  .btn-inline {
+    padding:8px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text);
+    cursor:pointer;
+  }
+  @media (max-width:980px) {
+    .wrap { grid-template-columns:1fr; }
+    .panel { position:static; height:auto; }
+    .grid2 { grid-template-columns:1fr; }
+  }
+  
+/* Panel filter yang bisa di-hide */
+details.filter{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:6px 8px;
+  background:var(--bg);
+  margin-bottom:8px;
+}
+details.filter > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex; align-items:center; justify-content:space-between;
+  color:var(--muted);
+}
+details.filter[open] > summary{ color:var(--text); }
+details.filter > summary::-webkit-details-marker { display:none; }
+.summary-chip{ font-size:11px; color:var(--muted); }
+
+/* Compact Choices.js */
+.choices[data-type*="select-multiple"] .choices__inner{
+  padding:4px 6px; min-height:36px; background:var(--bg); border-color:var(--border);
+}
+.choices__list--multiple .choices__item{
+  margin:2px 2px; padding:2px 6px; font-size:12px; border-radius:9999px;
+}
+.choices__list--dropdown{
+  max-height:220px; overflow:auto; background:var(--card); border-color:var(--border);
+}
+.choices__list--dropdown .choices__item--selectable{ font-size:13px; }
+
+/* Warna untuk angka naik/turun */
+.pos{ color:#16a34a; }      /* hijau */
+.neg{ color:#ef4444; }      /* merah */
+.neutral{ color:var(--muted); } /* abu-abu */
+
+/* ===== TICKER ===== */
+.ticker{
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background: color-mix(in oklab, var(--card), black 6%);
+  overflow:hidden;
+}
+.ticker__track{
+  white-space:nowrap;
+  will-change: transform;
+  display:inline-block;
+  padding:8px 0;
+  /* durasi scroll akan di-set via style inline --dur (detik) */
+  animation: tickerAnim var(--dur, 30s) linear infinite;
+}
+.ticker__item{ margin-right:28px; font-size:13px }
+.ticker__wk{ color:var(--muted); margin-right:6px }
+@keyframes tickerAnim {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.ticker:hover .ticker__track{ animation-play-state: paused; }
+
+/* ===== Collapsible filter + checkbox list ===== */
+details.filter{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:6px 8px;
+  background:var(--bg);
+  margin-bottom:8px;
+}
+details.filter > summary{
+  cursor:pointer; list-style:none;
+  display:flex; align-items:center; justify-content:space-between; color:var(--muted);
+}
+details.filter[open] > summary{ color:var(--text); }
+details.filter > summary::-webkit-details-marker{ display:none; }
+.summary-chip{ font-size:11px; color:var(--muted); }
+
+.filter-search{
+  width:100%; padding:8px 10px; margin:8px 0;
+  border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--text);
+}
+.filter-list{
+  max-height:220px; overflow:auto;
+  border:1px dashed var(--border); border-radius:8px; padding:6px;
+  background:var(--card);
+}
+.filter-item{
+  display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:8px;
+}
+.filter-item:hover{ background: color-mix(in oklab, var(--card), var(--text) 8%) }
+.filter-item input{ width:16px; height:16px }
+
+/* Untuk kemungkinan radio (single-select) — siap pakai bila diperlukan */
+.filter-item input[type="radio"]{ accent-color: #3b82f6; }
+.filter-item input[type="checkbox"]{ accent-color: #3b82f6; }
+
+/* ===== Warna angka naik/turun ===== */
+.pos     { color:#16a34a !important; }   /* hijau (naik) */
+.neg     { color:#ef4444 !important; }   /* merah (turun) */
+.neutral { color:var(--muted) !important; }
+
+/* Header sticky */
+header{
+  position: sticky;
+  top: 0;
+  z-index: 1000; /* pastikan di atas chart/konten */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* Warna latar pakai var yang sudah ada di tema */
+  background: color-mix(in oklab, var(--bg), black 5%);
+}
+
+/* ========== Tooltip Colors ========== */
+:root {
+  /* Mode gelap */
+  --tooltipBg:    var(--card);   /* latar tooltip (gelap) */
+  --tooltipText:  var(--text);   /* teks tooltip */
+  --tooltipLine:  var(--border); /* garis tepi tooltip */
+}
+:root[data-theme="light"] {
+  /* Mode terang */
+  --tooltipBg:    var(--card);   /* biasanya putih */
+  --tooltipText:  var(--text);   /* teks gelap */
+  --tooltipLine:  var(--border); /* garis tepi tooltip */
+}
+
   </style>
 </head>
-<body class="light">
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Dashboard Penjualan — Mingguan (V2)</h1>
-        <div class="status" id="status">Menyiapkan…</div>
-      </div>
-      <div class="toolbar">
-        <button class="toggle" id="themeBtn" title="Toggle Tema">🌙 / ☀️</button>
-        <div class="row" role="radiogroup" aria-label="Unit">
-          <span class="chip">Unit</span>
-          <label><input type="radio" name="unit" value="pac" checked> Pack</label>
-          <label><input type="radio" name="unit" value="th"> TH Stick</label>
-        </div>
-        <button class="ghost" id="btnExportCSV">Ekspor CSV (Filter)</button>
-      </div>
-    </header>
 
-    <details open>
-      <summary>Filter</summary>
-      <div class="sep"></div>
-      <div class="filters" style="margin-top:8px;">
-        <div>
-          <label for="weekMin">Week (min)</label>
-          <input type="number" id="weekMin" min="1" step="1" placeholder="min"/>
-        </div>
-        <div>
-          <label for="weekMax">Week (max)</label>
-          <input type="number" id="weekMax" min="1" step="1" placeholder="max"/>
-        </div>
-        <div>
-          <label for="regionSel">Region</label>
-          <select id="regionSel" multiple size="6"></select>
-        </div>
-        <div>
-          <label for="areaSel">Area</label>
-          <select id="areaSel" multiple size="6"></select>
-        </div>
-        <div>
-          <label for="typeSel">Type</label>
-          <select id="typeSel" multiple size="6"></select>
-        </div>
-        <div>
-          <label for="brandSel">Brand</label>
-          <select id="brandSel" multiple size="6"></select>
-        </div>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <button id="applyBtn" class="btn">Terapkan Filter</button>
-        <button id="resetBtn" class="ghost">Reset Filter</button>
-        <span class="note" id="selInfo"></span>
-      </div>
-    </details>
-
-    <div class="kpi" style="margin-top:12px;">
-      <div class="tile">
-        <div>Total SV</div>
-        <div id="kpiSV" class="big">–</div>
-        <div class="note">Satuan mengikuti Unit</div>
-      </div>
-      <div class="tile">
-        <div>Rata-rata SV / Week</div>
-        <div id="kpiSVAvg" class="big">–</div>
-        <div class="note">Berdasar range Week terpilih</div>
-      </div>
-      <div class="tile">
-        <div>Brand Terpilih</div>
-        <div id="kpiBrand" class="big">–</div>
-        <div class="note">Terhitung unik</div>
-      </div>
-      <div class="tile">
-        <div>Records</div>
-        <div id="kpiRows" class="big">–</div>
-        <div class="note">Setelah filter</div>
-      </div>
+  
+<body>
+<header>
+  <div class="head-actions">
+    <div>
+      <h1>Dashboard Penjualan — Mingguan</h1>
+      <div class="muted">Y: End Stock, FC, SP, SV • X: Week • Filter: Week, Region, Area, Type, Brand • Unit: Pack / TH Stick</div>
     </div>
-
-    <div class="grid" style="margin-top:12px;">
-      <div class="card cols-12 split">
-        <h3>Tren Mingguan: End Stock, FC, SP, SV</h3>
-        <div class="row"><button id="btnTrendPng" class="ghost">PNG</button></div>
-      </div>
-      <div class="card cols-12"><div id="chartTrend" class="chart"></div></div>
-
-      <div class="card cols-12 split">
-        <h3>Deviasi: FC−SV, SP−SV, FC−SP</h3>
-        <div class="row"><button id="btnDevPng" class="ghost">PNG</button></div>
-      </div>
-      <div class="card cols-12"><div id="chartDev" class="chart small"></div></div>
-
-      <div class="card cols-6 split">
-        <h3>Top Brand (SV) — Tertinggi</h3>
-        <div class="row"><button id="btnTopCSV" class="ghost">CSV</button></div>
-      </div>
-      <div class="card cols-6 split">
-        <h3>Top Brand (SV) — Terendah</h3>
-        <div class="row"><button id="btnLowCSV" class="ghost">CSV</button></div>
-      </div>
-      <div class="card cols-6">
-        <table id="tblTop">
-          <thead><tr><th>Brand</th><th class="right">SV</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="card cols-6">
-        <table id="tblLow">
-          <thead><tr><th>Brand</th><th class="right">SV</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div class="card cols-12 split">
-        <h3>End Stock vs SV (Scatter)</h3>
-        <div class="row"><button id="btnScatterPng" class="ghost">PNG</button></div>
-      </div>
-      <div class="card cols-12"><div id="chartScatter" class="chart small"></div></div>
-
-      <div class="card cols-12">
-        <h3>Insight Prediktif (Heuristik)</h3>
-        <p class="note">Estimasi berbasis linear fit sederhana atas agregasi mingguan SV. Gunakan sebagai indikasi awal (±2 minggu).</p>
-        <div id="predictBox"></div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <div>create by: EJV Team • Auto-load TXT • GitHub Pages ready (V2)</div>
+    <div>
+      <button id="themeToggle" class="btn-inline" title="Toggle tema">🌙/☀️</button>
     </div>
   </div>
+</header>
+
+<!-- TICKER: menampilkan perubahan week-over-week (SV, FC, SP, ES) -->
+<div id="ticker" class="ticker">
+  <div id="tickerTrack" class="ticker__track"></div>
+</div>
+
+<div class="wrap">
+  <!-- Sidebar / Control Panel -->
+  <aside class="panel">
+    <h2>Data</h2>
+    <div class="field">
+      <input type="file" id="fileInput" accept=".xlsx" class="btn"/>
+      <div class="muted" style="font-size:11px;margin-top:6px">Klik “Muat Excel (.xlsx)” lalu pilih <b>Data Penjualan.xlsx</b>.</div>
+    </div>
+
+<h2>Filter</h2>
+
+<div class="field">
+  <label>Rentang Week</label>
+  <div class="row">
+    <input type="number" id="wmin" value="1"/>
+    <input type="number" id="wmax" value="52"/>
+  </div>
+  <div class="muted" id="wkRangeText" style="margin-top:4px">(Week …)</div>
+</div>
+
+<!-- Region -->
+<details class="filter" id="secRegion">
+  <summary><span>Region</span><span class="summary-chip" id="chipRegion">Semua</span></summary>
+  <input id="srchRegion" class="filter-search" type="text" placeholder="Cari Region…">
+  <div id="listRegion" class="filter-list"></div>
+</details>
+
+<!-- Area -->
+<details class="filter" id="secArea">
+  <summary><span>Area</span><span class="summary-chip" id="chipArea">Semua</span></summary>
+  <input id="srchArea" class="filter-search" type="text" placeholder="Cari Area…">
+  <div id="listArea" class="filter-list"></div>
+</details>
+
+<!-- Type -->
+<details class="filter" id="secType">
+  <summary><span>Type</span><span class="summary-chip" id="chipType">Semua</span></summary>
+  <input id="srchType" class="filter-search" type="text" placeholder="Cari Type…">
+  <div id="listType" class="filter-list"></div>
+</details>
+
+<!-- Brand -->
+<details class="filter" id="secBrand">
+  <summary><span>Brand</span><span class="summary-chip" id="chipBrand">Semua</span></summary>
+  <input id="srchBrand" class="filter-search" type="text" placeholder="Cari Brand…">
+  <div id="listBrand" class="filter-list"></div>
+</details>
+
+<div class="field" style="margin-top:10px">
+  <label>Unit</label>
+  <div class="seg">
+    <button id="unitPack" class="active">Pack</button>
+    <button id="unitStick">TH Stick</button>
+  </div>
+</div>
+
+<div class="field">
+  <button id="reset" class="btn" style="width:100%">Reset Filter</button>
+</div>
+<div class="muted" style="font-size:11px">
+  Tip: klik judul untuk membuka/menutup filter. Search mendukung multi-pick dengan checkbox.
+</div>
+
+
+  </aside>
+
+  <!-- Content -->
+  <main class="content">
+    <section class="card">
+      <h3 style="margin:0 0 6px">Tren Mingguan: End Stock, FC, SP, SV</h3>
+      <div id="chart_main" style="height:420px"></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card">
+        <h3 style="margin:0 0 6px">Deviasi: FC−SV, SP−SV, FC−SP</h3>
+        <div id="chart_dev" style="height:340px"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 6px">Ringkasan Tren</h3>
+        <div id="summary" class="summary"><p class="muted">Muat Excel untuk melihat ringkasan.</p></div>
+
+        <h3 style="margin:16px 0 6px">Top Brand (SV)</h3>
+        <div class="grid2">
+          <div>
+            <div class="badge">Tertinggi</div>
+            <table id="top_hi"><thead><tr><th>Brand</th><th>SV</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div>
+            <div class="badge" style="background:#2a1818;color:#fecaca;border-color:#7f1d1d">Terendah</div>
+            <table id="top_lo"><thead><tr><th>Brand</th><th>SV</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 6px">End Stock vs SV (Stok vs Penjualan)</h3>
+      <div id="chart_es_sv" style="height:380px"></div>
+      <div id="stockSalesNotes" class="muted" style="margin-top:8px;font-size:13px"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 6px">Insight Prediktif (Heuristik)</h3>
+      <div id="forecastBox" class="summary"><p class="muted">Estimasi berbasis linear fit sederhana, gunakan sebagai indikasi awal (±2 minggu).</p></div>
+    </section>
+  </main>
+</div>
 
   <script type="module">
     /* =========================================================
