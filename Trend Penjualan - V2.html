@@ -17,6 +17,8 @@
 <link href="https://fonts.googleapis.comink" rel="preconnect">
 <link href="https://fonts.googleapis.com/css2?family=00;600;700&display=swap"/>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/distn.js"></script>
+	
 <style>
   :root {
     --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb;
@@ -368,49 +370,49 @@ header{
 
 <script>
 
-/***** ====== AUTO SOURCE SETUP (Pages vs Local Dev) ====== *****/
-
-// Ubah sesuai repo Mas:
+/* ====== KONFIGURASI SUMBER DATA (GANTI DENGAN PUNYA MAS) ====== */
 const GH_SOURCE = {
-  user:   'prayogoangga', // <- ganti: username GitHub
-  repo:   'TrendSV',    // <- ganti: nama repository
-  branch: 'main',         // <- ganti: nama branch (mis. 'main' / 'master')
-  file:   'Data Penjualan.xlsx' // nama file Excel di root yg sama dgn HTML
+  user:   'prayogoangga',        // ← ganti: username GitHub
+  repo:   'TrendSV',           // ← ganti: nama repository
+  branch: 'main',                // ← ganti: nama branch
+  file:   'Data Penjualan.xlsx'  // nama file Excel di root yg sama dgn HTML
 };
 
-// Deteksi environment
-function isGhPagesHost() {
-  // Default GitHub Pages domain (username.github.io) -> true
+/* ====== UTIL ====== */
+const cssVal = (name, fallback='') =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+
+/* Deteksi environment */
+function isGhPagesHost(){
   if (location.hostname.endsWith('.github.io')) return true;
-  // (Opsional) override via query ?pages=1 atau window flag
   const q = new URLSearchParams(location.search);
-  if (q.get('pages') === '1') return true;
+  if (q.get('pages') === '1') return true;          // override via ?pages=1
   if (window.DASH_FORCE_PAGES === true) return true;
   return false;
 }
-
-function isLocalDev() {
-  return (
-    location.protocol === 'file:' ||
-    location.hostname === 'localhost' ||
-    location.hostname === '127.0.0.1'
-  );
+function isLocalDev(){
+  return location.protocol === 'file:' ||
+         location.hostname === 'localhost' ||
+         location.hostname === '127.0.0.1';
 }
 
-// Bangun URL default sesuai lingkungan
-function defaultDataUrl() {
-  if (isGhPagesHost()) {
-    // Same-origin (GitHub Pages Project Pages): cukup relatif path
-    // Hati-hati: jangan pakai '/' di depan, karena akan buang prefix '/repo'
+/* URL sumber data (bisa override via ?mode=pages|raw) */
+function defaultDataUrl(){
+  const q = new URLSearchParams(location.search);
+  const mode = (q.get('mode')||'').toLowerCase();
+
+  if (mode === 'pages' || (mode==='' && isGhPagesHost())) {
+    // Same-origin di GitHub Pages → relative path (JANGAN pakai slash awal '/')
     return `./${encodeURIComponent(GH_SOURCE.file)}`;
   }
-  // Selain Pages (termasuk dev lokal): gunakan RAW GitHub
-  const { user, repo, branch, file } = GH_SOURCE;
+
+  // RAW GitHub (untuk dev lokal / domain lain)
+  const {user, repo, branch, file} = GH_SOURCE;
   return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
 }
 
-// (Opsional) bypass cache saat dev
-function withCacheBuster(url) {
+/* Tambah cache-buster saat dev lokal agar tidak ketahan cache */
+function withCacheBuster(url){
   if (isLocalDev()) {
     const u = new URL(url, location.href);
     u.searchParams.set('_v', Date.now().toString());
@@ -419,44 +421,94 @@ function withCacheBuster(url) {
   return url;
 }
 
-// Override cepat via query:
-// ?mode=pages -> paksa path relatif
-// ?mode=raw   -> paksa RAW GitHub
-function defaultDataUrl() {
-  const q = new URLSearchParams(location.search);
-  const mode = (q.get('mode') || '').toLowerCase();
-  if (mode === 'pages') {
-    return `./${encodeURIComponent(GH_SOURCE.file)}`;
+/* ====== LOADER GLOBAL (JAMIN ADA) ======
+   Jika sebelumnya sudah ada, kita TIDAK menimpa (pakai ??=) */
+window.loadFromArrayBuffer ??= async function loadFromArrayBuffer(ab, fileName='unknown.xlsx'){
+  if (!window.XLSX) {
+    throw new Error('XLSX belum dimuat. Pastikan <script xlsx.full.min.js> sudah ada sebelum patch ini.');
   }
-  if (mode === 'raw') {
-    const { user, repo, branch, file } = GH_SOURCE;
-    return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
-  }
-  // — kalau tidak ada override, pakai deteksi normal:
-  if (isGhPagesHost()) {
-    return `./${encodeURIComponent(GH_SOURCE.file)}`;
-  }
-  const { user, repo, branch, file } = GH_SOURCE;
-  return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${encodeURIComponent(file)}`;
-}
+  const wb = XLSX.read(ab, { type:'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  let rows = XLSX.utils.sheet_to_json(sheet, { raw:true, defval:null });
 
-	
-// fungsi auto load	
-async function autoLoadDefaultExcel() {
-  try {
+  // Normalisasi header (trim)
+  rows = rows.map(r => {
+    const o={}; for(const k in r) o[String(k).trim()] = r[k]; return o;
+  });
+
+  // Bangun RAW sesuai skema yang kita gunakan
+  window.RAW = rows.map(r=>({
+    Week: parseInt(r['Week'])||0,
+    Region: (r['Region']??'').toString().trim(),
+    Area:   (r['Area']??'').toString().trim(),
+    Brand:  (r['Brand']??'').toString().trim(),
+    Type:   (r['Type']??'').toString().trim(),
+    // Unit Pack
+    ES_P:+r['End Stock (Pac)']||0, FC_P:+r['FC (Pac)']||0, SP_P:+r['SP (Pac)']||0, SV_P:+r['SV (Pac)']||0,
+    // Unit TH Stick
+    ES_T:+r['End Stock (TH Stick)']||0, FC_T:+r['FC (TH Stick)']||0, SP_T:+r['SP (TH Stick)']||0, SV_T:+r['SV (TH Stick)']||0
+  }));
+
+  // Set rentang week
+  const wkVals = window.RAW.map(r=>r.Week).filter(Number.isFinite);
+  window.wkMin = Math.min(...wkVals); 
+  window.wkMax = Math.max(...wkVals);
+
+  const wminEl = document.getElementById('wmin');
+  const wmaxEl = document.getElementById('wmax');
+  const wkRangeText = document.getElementById('wkRangeText');
+
+  if (wminEl) wminEl.value = window.wkMin;
+  if (wmaxEl) wmaxEl.value = window.wkMax;
+  if (wkRangeText) wkRangeText.textContent = `(${window.wkMin} – ${window.wkMax})`;
+
+  // Siapkan opsi filter (VERSI CHECKBOX yang baru)
+  const uniq = arr => [...new Set(arr.filter(v => v!=null && v!==''))]
+                      .sort((a,b)=>String(a).localeCompare(String(b)));
+
+  // Struktur global FILTER_OPTS & FILTER_SEL jika belum ada
+  window.FILTER_OPTS = window.FILTER_OPTS || { region:[], area:[], type:[], brand:[] };
+  window.FILTER_SEL  = window.FILTER_SEL  || { region:new Set(), area:new Set(), type:new Set(), brand:new Set() };
+
+  FILTER_OPTS.region = uniq(window.RAW.map(r=>r.Region));
+  FILTER_OPTS.area   = uniq(window.RAW.map(r=>r.Area));
+  FILTER_OPTS.type   = uniq(window.RAW.map(r=>r.Type));
+  FILTER_OPTS.brand  = uniq(window.RAW.map(r=>r.Brand));
+
+  // Reset pilihan aktif
+  Object.keys(FILTER_SEL).forEach(k => FILTER_SEL[k].clear());
+
+  // Pastikan fungsi render list & init filter ada
+  if (typeof window.renderFilterList === 'function' && typeof window.initFilterCheckboxes === 'function') {
+    initFilterCheckboxes();     // render ulang UI checkbox + search + chips
+  }
+
+  // Render dashboard awal
+  if (typeof window.updateAll === 'function') {
+    window.updateAll();
+  } else {
+    console.warn('[Loader] updateAll() belum terdefinisi saat loadFromArrayBuffer dipanggil.');
+  }
+
+  console.info('[Loader] Data loaded from:', fileName, 'rows:', rows.length);
+};
+
+/* ====== AUTO-LOAD DEFAULT EXCEL SESUAI LINGKUNGAN ====== */
+async function autoLoadDefaultExcel(){
+  try{
     const url = withCacheBuster(defaultDataUrl());
-    const res = await fetch(url, { method: 'GET' });
+    const res = await fetch(url, { method:'GET' });
     if (!res.ok) throw new Error(`Fetch gagal (${res.status})`);
     const ab = await res.arrayBuffer();
-    await loadFromArrayBuffer(ab, url); // ← fungsi loader Mas
-    console.info('[AutoLoad] Sukses memuat data dari:', url);
-  } catch (err) {
+    await window.loadFromArrayBuffer(ab, url); // ← panggil loader global
+    console.info('[AutoLoad] Sukses muat:', url);
+  }catch(err){
     console.warn('[AutoLoad] Gagal:', err);
-    // Tidak fatal—user masih bisa pakai tombol Upload/URL manual
+    // Tidak fatal: user masih bisa upload manual
   }
 }
 
-// Jalankan otomatis setelah halaman siap
+// Jalankan autoload setelah halaman siap
 window.addEventListener('load', autoLoadDefaultExcel);
 
 	
@@ -1090,3 +1142,4 @@ function renderTicker(byW){
 
 </body>
 </html>
+
