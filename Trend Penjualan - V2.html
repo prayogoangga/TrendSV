@@ -459,13 +459,49 @@ function parseTSV(text) {
   return out;
 }
 
-// ====== LOADER (robust untuk Pages/subfolder) ======
+// ================== RAW DATA SOURCE (pilih salah satu) ==================
+
+// Opsi 1: RAW GitHub (standar)
+const DATA_URL = 'https://raw.githubusercontent.com/prayogoangga/TrendSV/main/Data%20Penjualan.txt';
+
+// Opsi 2: jsDelivr CDN (biasanya lebih cepat). Bisa pin ke SHA commit untuk versi stabil.
+// const DATA_URL = 'https://cdn.jsdelivr.net/gh/prayogoangga/TrendSV@main/Data%20Penjualan.txt';
+// Contoh pin SHA: 'https://cdn.jsdelivr.net/gh/prayogoangga/TrendSV@<SHA-COMMIT>/Data%20Penjualan.txt'
+
+// (Opsional) versi untuk cache-busting saat file diupdate
+const DATA_VERSION = '2025-09-13-1'; // ubah nilainya tiap upload data baru
+
+// ================== LOADER (pakai URL RAW) ==================
 async function loadDataFromTXT() {
-  const url = new URL(encodeURI('./' + DATA_FILE), window.location.href);
-  const resp = await fetch(url, { cache: 'no-store' });
-  if (!resp.ok) throw new Error(`Gagal fetch ${url}: ${resp.status} ${resp.statusText}`);
+  // tambahkan query ?v=... agar mudah memaksa refresh cache
+  const u = new URL(DATA_URL);
+  u.searchParams.set('v', DATA_VERSION);
+
+  let resp;
+  try {
+    resp = await fetch(u.toString(), {
+      mode: 'cors',
+      // 'force-cache' untuk manfaatkan cache CDN/browser; ganti 'no-store' bila ingin selalu fresh
+      cache: 'force-cache',
+    });
+  } catch (netErr) {
+    console.error('[TSV] Network error saat fetch RAW:', netErr);
+    throw new Error('Gagal menghubungi sumber RAW (cek koneksi/CORS).');
+  }
+
+  if (!resp.ok) {
+    throw new Error(`Fetch RAW gagal (${resp.status} ${resp.statusText}). Cek URL dan akses repo.`);
+  }
+
+  const ct = (resp.headers.get('content-type') || '').toLowerCase();
   const text = await resp.text();
-  return parseTSV(text);
+
+  // Deteksi salah URL (dapat HTML viewer, bukan TXT RAW)
+  if (ct.includes('text/html') || /^<!doctype|^<html/i.test(text.trim())) {
+    throw new Error('URL mengembalikan HTML, bukan teks mentah. Gunakan raw.githubusercontent.com atau jsDelivr (bukan URL "blob").');
+  }
+
+  return parseTSV(text); // <-- gunakan parser Anda yang sudah BOM-safe
 }
 
 /* ===================== STATE ===================== */
@@ -1426,6 +1462,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
