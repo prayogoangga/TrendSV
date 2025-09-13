@@ -478,8 +478,8 @@ let FILTER = {
 
 /* ===================== HELPER ===================== */
 const fmt = n => (Number.isFinite(n) ? n : 0).toLocaleString('id-ID');
-const $  = sel => document.querySelector(sel);
-const $$ = sel => Array.from(document.querySelectorAll(sel));
+//=============================================================================================const $  = sel => document.querySelector(sel);
+//=============================================================================================const $$ = sel => Array.from(document.querySelectorAll(sel));
 function uniqSorted(arr) {
   return Array.from(new Set(arr)).filter(v => v !== '').sort((a,b) => (''+a).localeCompare(b));
 }
@@ -728,18 +728,18 @@ function wireEvents() {
 }
 	
 // ====== BOOTSTRAP ======
-document.addEventListener('DOMContentLoaded', async () => {
-  const $status = document.getElementById('status') || null;
-  try {
-    $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
-    const data = await loadDataFromTXT();
+//document.addEventListener('DOMContentLoaded', async () => {
+// const $status = document.getElementById('status') || null;
+//  try {
+//   $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
+//    const data = await loadDataFromTXT();
 
-	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-if (Array.isArray(data)) {
-  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
-} else {
-  console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
-}
+//	  console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+//if (Array.isArray(data)) {
+//  console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+//} else {
+ // console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+//}
 
 // 👉 Diagnostik lanjutan:
 console.log('[APP] typeof initDashboard =', typeof window.initDashboard);
@@ -1437,6 +1437,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
