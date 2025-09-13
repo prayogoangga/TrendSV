@@ -490,6 +490,10 @@ window.loadFromArrayBuffer ??= async function loadFromArrayBuffer(ab, fileName='
     initFilterCheckboxes();     // render ulang UI checkbox + search + chips
   }
 
+document.dispatchEvent(new CustomEvent('data-ready', {
+  detail: { rows: window.RAW.length, wkMin: window.wkMin, wkMax: window.wkMax }
+}));
+	
   // Render dashboard awal
   if (typeof window.updateAll === 'function') {
     window.updateAll();
@@ -688,11 +692,11 @@ function updateChips(){
   }
 
   // ============ STATE ============
-  let RAW=[]; let unit='pack'; let wkMin=1,wkMax=52;
-  const fileInput = document.getElementById('fileInput');
-  const wminEl = document.getElementById('wmin');
-  const wmaxEl = document.getElementById('wmax');
-  const wkRangeText = document.getElementById('wkRangeText');
+  //let RAW=[]; let unit='pack'; let wkMin=1,wkMax=52;
+  //const fileInput = document.getElementById('fileInput');
+  //const wminEl = document.getElementById('wmin');
+  //const wmaxEl = document.getElementById('wmax');
+  //const wkRangeText = document.getElementById('wkRangeText');
 
   // Choices.js instances
   let chRegion, chArea, chType, chBrand;
@@ -901,19 +905,24 @@ function initChoices(){
   // ============ Filtering & Aggregation ============
   const getSel = (ch)=> (ch ? ch.getValue(true) : []);
 function filterData(){
-  if(!RAW.length) return [];
+  const data = Array.isArray(window.RAW) ? window.RAW : [];
+  if (!data.length) return [];
+
   let wmin = +document.getElementById('wmin').value;
   let wmax = +document.getElementById('wmax').value;
-  if(wmin>wmax){ const t=wmin; wmin=wmax; wmax=t; document.getElementById('wmin').value=wmin; document.getElementById('wmax').value=wmax; }
+  if (wmin > wmax) { const t=wmin; wmin=wmax; wmax=t; document.getElementById('wmin').value=wmin; document.getElementById('wmax').value=wmax; }
 
-  const rSel = selArr('region'), aSel = selArr('area'), tSel = selArr('type'), bSel = selArr('brand');
+  const rSel = [...(window.FILTER_SEL?.region || [])];
+  const aSel = [...(window.FILTER_SEL?.area   || [])];
+  const tSel = [...(window.FILTER_SEL?.type   || [])];
+  const bSel = [...(window.FILTER_SEL?.brand  || [])];
 
-  return RAW.filter(r =>
-    r.Week>=wmin && r.Week<=wmax &&
-    (rSel.length? rSel.includes(r.Region): true) &&
-    (aSel.length? aSel.includes(r.Area): true) &&
-    (tSel.length? tSel.includes(r.Type): true) &&
-    (bSel.length? bSel.includes(r.Brand): true)
+  return data.filter(r =>
+    r.Week >= wmin && r.Week <= wmax &&
+    (rSel.length ? rSel.includes(r.Region) : true) &&
+    (aSel.length ? aSel.includes(r.Area)   : true) &&
+    (tSel.length ? tSel.includes(r.Type)   : true) &&
+    (bSel.length ? bSel.includes(r.Brand)  : true)
   );
 }
   const getVal = (r, k)=> unit==='pack' ? r[`${k}_P`] : r[`${k}_T`];
@@ -1140,58 +1149,26 @@ function renderTicker(byW){
   track.style.setProperty('--dur', seconds + 's');
 }
 
-
-
-  // ============ Update Pipeline ============
-  function updateAll(){
-    if(!RAW.length) return;
-    const rows = filterData();
-    const byW = aggByWeek(rows);
-    renderMain(byW);
-    renderDev(aggDev(rows));
-    renderSummary(byW);
-    renderTop(rows);
-    renderESvsSV(byW);
-    renderForecast(byW);
-	renderTicker(byW);
-  }
-
-  // Inputs listener
-  ['change','input'].forEach(ev => { wminEl.addEventListener(ev, updateAll); wmaxEl.addEventListener(ev, updateAll); });
-</script>
-
-<script>
-// --- DIAGNOSA: pastikan elemen ada
-['chart_main','chart_dev','chart_es_sv','summary','top_hi','top_lo'].forEach(id=>{
-  if(!document.getElementById(id)){
-    console.error('[Diag] Elemen hilang: #' + id);
-  }
-});
-
-// --- helper aman: eksekusi fungsi render tapi tangkap error
 function safeCall(name, fn){
   try { fn(); } catch(e){ console.error('[Diag] ' + name + ' gagal:', e); }
 }
 
-// --- override updateAll jadi versi "verbose"
 window.updateAll = function(){
-  if(!window.RAW || !RAW.length){
-    console.warn('[Diag] RAW kosong atau belum terisi');
+  // Selalu refer ke window.RAW
+  if (!window.RAW || !Array.isArray(window.RAW) || window.RAW.length === 0) {
+    console.warn('[Diag] window.RAW kosong atau belum terisi');
     return;
   }
-  console.log('[Diag] RAW:', RAW.length, 'baris');
+
+  console.log('[Diag] window.RAW:', window.RAW.length, 'baris');
 
   const rows = filterData();
   console.log('[Diag] Filtered rows:', rows.length);
 
   const byW  = aggByWeek(rows);
-  console.log('[Diag] aggByWeek:', byW.length, 'minggu',
-              byW.length? ('| W' + byW[0].Week + '…W' + byW[byW.length-1].Week): '');
+  console.log('[Diag] aggByWeek:', byW.length, 'minggu');
 
-  // tampilkan sampel 3 baris agar tahu struktur ES/FC/SP/SV
-  console.table(byW.slice(0,3));
-
-  // Render satu per satu dengan proteksi error
+  // Render satu per satu (jika fungsi ada semua)
   safeCall('renderMain',     ()=>renderMain(byW));
   safeCall('renderDev',      ()=>renderDev(aggDev(rows)));
   safeCall('renderSummary',  ()=>renderSummary(byW));
@@ -1202,6 +1179,7 @@ window.updateAll = function(){
 };
 </script>
 
+
 <footer class="site-footer" style="margin:14px; text-align:center; color:var(--muted); font-size:12px;">
   create by: EJV Team
 </footer>
@@ -1209,6 +1187,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
