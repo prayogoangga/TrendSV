@@ -458,6 +458,7 @@ function parseTSV(text) {
   }
   return out;
 }
+
 // ====== LOADER (robust untuk Pages/subfolder) ======
 async function loadDataFromTXT() {
   const url = new URL(encodeURI('./' + DATA_FILE), window.location.href);
@@ -467,6 +468,265 @@ async function loadDataFromTXT() {
   return parseTSV(text);
 }
 
+/* ===================== STATE ===================== */
+let RAW = [];
+let FILTER = {
+  weekMin: null, weekMax: null,
+  regions: [], areas: [], types: [], brands: [],
+  unit: 'pac' // 'pac' | 'th'
+};
+
+/* ===================== HELPER ===================== */
+const fmt = n => (Number.isFinite(n) ? n : 0).toLocaleString('id-ID');
+const $  = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+function uniqSorted(arr) {
+  return Array.from(new Set(arr)).filter(v => v !== '').sort((a,b) => (''+a).localeCompare(b));
+}
+function getUnitKey(base) { return FILTER.unit === 'pac' ? `${base}_Pac` : `${base}_TH`; }
+
+/* ===================== FILTER UI ===================== */
+function initFilters(data) {
+  const weeks = uniqSorted(data.map(d => d.Week)).map(Number).filter(Number.isFinite);
+  if (weeks.length) {
+    $('#weekMin') && ($('#weekMin').value = Math.min(...weeks));
+    $('#weekMax') && ($('#weekMax').value = Math.max(...weeks));
+    FILTER.weekMin = Number($('#weekMin')?.value) || Math.min(...weeks);
+    FILTER.weekMax = Number($('#weekMax')?.value) || Math.max(...weeks);
+  }
+
+  const regions = uniqSorted(data.map(d => d.Region));
+  const areas   = uniqSorted(data.map(d => d.Area));
+  const types   = uniqSorted(data.map(d => d.Type));
+  const brands  = uniqSorted(data.map(d => d.Brand));
+
+  function fill(sel, vals) {
+    const el = $(sel); if (!el) return;
+    el.innerHTML = vals.map(v => `<option value="${v}">${v}</option>`).join('');
+    el.selectedIndex = -1; // default: semua
+  }
+  fill('#regionSel', regions);
+  fill('#areaSel', areas);
+  fill('#typeSel', types);
+  fill('#brandSel', brands);
+  updateSelInfo();
+}
+
+function extractMulti(sel) { return Array.from($(sel)?.selectedOptions || []).map(o => o.value); }
+function updateSelInfo() {
+  const rs = extractMulti('#regionSel'), as = extractMulti('#areaSel'), ts = extractMulti('#typeSel'), bs = extractMulti('#brandSel');
+  const el = $('#selInfo'); if (!el) return;
+  el.textContent = [
+    rs.length ? `Region: ${rs.length}` : null,
+    as.length ? `Area: ${as.length}` : null,
+    ts.length ? `Type: ${ts.length}` : null,
+    bs.length ? `Brand: ${bs.length}` : null,
+  ].filter(Boolean).join(' • ') || 'Semua';
+}
+function onApply() {
+  FILTER.weekMin = Number($('#weekMin')?.value) || FILTER.weekMin;
+  FILTER.weekMax = Number($('#weekMax')?.value) || FILTER.weekMax;
+  FILTER.regions = extractMulti('#regionSel');
+  FILTER.areas   = extractMulti('#areaSel');
+  FILTER.types   = extractMulti('#typeSel');
+  FILTER.brands  = extractMulti('#brandSel');
+  updateSelInfo();
+  renderAll();
+}
+function onReset() {
+  ['regionSel','areaSel','typeSel','brandSel'].forEach(id => { const el = $('#'+id); if (el) el.selectedIndex = -1; });
+  const weeks = Array.from(new Set(RAW.map(d => d.Week))).map(Number).filter(Number.isFinite);
+  if (weeks.length) {
+    $('#weekMin') && ($('#weekMin').value = Math.min(...weeks));
+    $('#weekMax') && ($('#weekMax').value = Math.max(...weeks));
+    FILTER.weekMin = Math.min(...weeks);
+    FILTER.weekMax = Math.max(...weeks);
+  }
+  FILTER.regions=[]; FILTER.areas=[]; FILTER.types=[]; FILTER.brands=[];
+  renderAll();
+}
+
+function applyFilter(data) {
+  const {weekMin, weekMax, regions, areas, types, brands} = FILTER;
+  return data.filter(d => {
+    if (d.Week && (weekMin != null && d.Week < weekMin)) return false;
+    if (d.Week && (weekMax != null && d.Week > weekMax)) return false;
+    if (regions.length && !regions.includes(d.Region)) return false;
+    if (areas.length && !areas.includes(d.Area)) return false;
+    if (types.length && !types.includes(d.Type)) return false;
+    if (brands.length && !brands.includes(d.Brand)) return false;
+    return true;
+  });
+}
+
+/* ===================== AGREGASI & KPI ===================== */
+function groupByWeek(data) {
+  const SV = getUnitKey('SV'), FC = getUnitKey('FC'), SP = getUnitKey('SP'), ES = getUnitKey('ES');
+  const map = new Map();
+  for (const r of data) {
+    const w = r.Week || 0;
+    if (!map.has(w)) map.set(w, {Week: w, SV:0, FC:0, SP:0, ES:0});
+    const a = map.get(w);
+    a.SV += r[SV] || 0; a.FC += r[FC] || 0; a.SP += r[SP] || 0; a.ES += r[ES] || 0;
+  }
+  const arr = Array.from(map.values()).sort((a,b)=>a.Week-b.Week);
+  arr.forEach(d => { d.FC_minus_SV = d.FC - d.SV; d.SP_minus_SV = d.SP - d.SV; d.FC_minus_SP = d.FC - d.SP; });
+  return arr;
+}
+function computeTopBrands(data, topN=10) {
+  const SV = getUnitKey('SV');
+  const map = new Map();
+  for (const r of data) map.set(r.Brand || '(NA)', (map.get(r.Brand || '(NA)') || 0) + (r[SV] || 0));
+  const arr  = Array.from(map.entries()).map(([Brand, SV])=>({Brand, SV}));
+  const desc = arr.slice().sort((a,b)=>b.SV-a.SV);
+  const asc  = arr.slice().filter(x=>x.SV>0).sort((a,b)=>a.SV-b.SV);
+  return { top: desc.slice(0, topN), low: asc.slice(0, topN) };
+}
+function computeKPIs(data) {
+  const SV = getUnitKey('SV');
+  const totalSV = data.reduce((s,r)=>s+(r[SV]||0),0);
+  const weeks = Array.from(new Set(data.map(d=>d.Week))).filter(Number.isFinite);
+  const avgSV = weeks.length ? totalSV / weeks.length : 0;
+  const brands = new Set(data.map(d=>d.Brand).filter(Boolean));
+  return { totalSV, avgSV, brandCount: brands.size, rows: data.length };
+}
+function linearFit(x, y) {
+  const n = x.length; if (!n) return {a:0,b:0};
+  let sx=0, sy=0, sxx=0, sxy=0;
+  for (let i=0;i<n;i++){ sx+=x[i]; sy+=y[i]; sxx+=x[i]*x[i]; sxy+=x[i]*y[i]; }
+  const b = (n*sxy - sx*sy) / Math.max(1e-9, (n*sxx - sx*sx));
+  const a = (sy - b*sx) / n; return {a,b};
+}
+
+/* ===================== RENDER (ECharts) ===================== */
+let trendChart, devChart, scatterChart;
+
+function renderTrend(weeks) {
+  if (!window.echarts) return;
+  const x = weeks.map(d=>d.Week);
+  const axisC = getComputedStyle(document.body).getPropertyValue('--muted');
+  const lineC = getComputedStyle(document.body).getPropertyValue('--border');
+  const fgC   = getComputedStyle(document.body).getPropertyValue('--fg');
+  const opt = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', valueFormatter: v => fmt(v) },
+    legend: { data: ['End Stock','FC','SP','SV'], textStyle:{ color: fgC } },
+    grid: { left: 40, right: 20, top: 30, bottom: 35 },
+    xAxis: { type:'category', data: x, axisLabel:{ color: axisC }, axisLine:{lineStyle:{color: lineC}} },
+    yAxis: { type:'value', axisLabel:{ color: axisC }, splitLine:{lineStyle:{color: lineC}} },
+    series: [
+      { name:'End Stock', type:'line', smooth:true, showSymbol:false, data: weeks.map(d=>d.ES) },
+      { name:'FC',        type:'line', smooth:true, showSymbol:false, data: weeks.map(d=>d.FC) },
+      { name:'SP',        type:'line', smooth:true, showSymbol:false, data: weeks.map(d=>d.SP) },
+      { name:'SV',        type:'line', smooth:true, showSymbol:false, data: weeks.map(d=>d.SV) },
+    ]
+  };
+  trendChart = trendChart || echarts.init(document.getElementById('chartTrend'));
+  trendChart.setOption(opt, true);
+}
+
+function renderDev(weeks) {
+  if (!window.echarts) return;
+  const x = weeks.map(d=>d.Week);
+  const axisC = getComputedStyle(document.body).getPropertyValue('--muted');
+  const lineC = getComputedStyle(document.body).getPropertyValue('--border');
+  const fgC   = getComputedStyle(document.body).getPropertyValue('--fg');
+  const opt = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger:'axis', valueFormatter: v => fmt(v) },
+    legend: { data: ['FC−SV','SP−SV','FC−SP'], textStyle:{ color: fgC } },
+    grid: { left: 40, right: 20, top: 30, bottom: 35 },
+    xAxis: { type:'category', data:x, axisLabel:{ color: axisC }, axisLine:{lineStyle:{color: lineC}} },
+    yAxis: { type:'value', axisLabel:{ color: axisC }, splitLine:{lineStyle:{color: lineC}} },
+    series: [
+      { name:'FC−SV', type:'bar', data: weeks.map(d=>d.FC_minus_SV) },
+      { name:'SP−SV', type:'bar', data: weeks.map(d=>d.SP_minus_SV) },
+      { name:'FC−SP', type:'bar', data: weeks.map(d=>d.FC_minus_SP) },
+    ]
+  };
+  devChart = devChart || echarts.init(document.getElementById('chartDev'));
+  devChart.setOption(opt, true);
+}
+
+function renderScatter(rows) {
+  if (!window.echarts) return;
+  const ES = getUnitKey('ES'), SV = getUnitKey('SV');
+  const data = rows.map(r => [r[ES] || 0, r[SV] || 0, r.Brand || '']).filter(p => (p[0]+p[1])>0);
+  const axisC = getComputedStyle(document.body).getPropertyValue('--muted');
+  const lineC = getComputedStyle(document.body).getPropertyValue('--border');
+  const accC  = getComputedStyle(document.body).getPropertyValue('--accent');
+  const opt = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      formatter: p => {
+        const [x,y,brand] = p.data;
+        return `Brand: <b>${brand}</b><br>ES: ${fmt(x)} • SV: ${fmt(y)}`;
+      }
+    },
+    grid: { left: 50, right: 20, top: 20, bottom: 40 },
+    xAxis: { type:'value', name:'End Stock', axisLabel:{ color: axisC }, splitLine:{lineStyle:{color: lineC}} },
+    yAxis: { type:'value', name:'SV',        axisLabel:{ color: axisC }, splitLine:{lineStyle:{color: lineC}} },
+    series: [{ type:'scatter', symbolSize: 6, data, itemStyle:{ color: accC } }]
+  };
+  scatterChart = scatterChart || echarts.init(document.getElementById('chartScatter'));
+  scatterChart.setOption(opt, true);
+}
+
+function renderTables(top, low) {
+  const tbodyTop = $('#tblTop tbody'), tbodyLow = $('#tblLow tbody');
+  if (tbodyTop) tbodyTop.innerHTML = top.map(r => `<tr><td>${r.Brand}</td><td class="right">${fmt(r.SV)}</td></tr>`).join('');
+  if (tbodyLow) tbodyLow.innerHTML = low.map(r => `<tr><td>${r.Brand}</td><td class="right">${fmt(r.SV)}</td></tr>`).join('');
+}
+function renderKPIs(k) {
+  $('#kpiSV')   && ($('#kpiSV').textContent   = fmt(k.totalSV));
+  $('#kpiSVAvg')&& ($('#kpiSVAvg').textContent= fmt(Math.round(k.avgSV)));
+  $('#kpiBrand')&& ($('#kpiBrand').textContent= fmt(k.brandCount));
+  $('#kpiRows') && ($('#kpiRows').textContent = fmt(k.rows));
+}
+function renderPredict(weeks) {
+  const box = $('#predictBox'); if (!box) return;
+  const x = weeks.map(d=>d.Week), y = weeks.map(d=>d.SV);
+  if (!x.length) { box.innerHTML = '<div class="note">Tidak ada data.</div>'; return; }
+  const {a,b} = linearFit(x,y); const lastW = x[x.length-1];
+  const next1 = Math.round(a + b*(lastW+1)); const next2 = Math.round(a + b*(lastW+2));
+  box.innerHTML = `
+    <div class="row"><span class="chip">Model</span>
+      <span>a = ${fmt(Math.round(a))}</span> <span>• b = ${fmt(Math.round(b))}</span>
+    </div>
+    <p>Perkiraan SV minggu ke-<b>${lastW+1}</b>: <b>${fmt(next1)}</b>
+       &nbsp;•&nbsp; minggu ke-<b>${lastW+2}</b>: <b>${fmt(next2)}</b></p>
+    <p class="note">Catatan: linear fit sederhana; gunakan sebagai indikasi awal (±2 minggu).</p>`;
+}
+
+function renderAll() {
+  const filtered = applyFilter(RAW);
+  const gw = groupByWeek(filtered);
+  renderTrend(gw);
+  renderDev(gw);
+  renderScatter(filtered);
+  const {top, low} = computeTopBrands(filtered, 10);
+  renderTables(top, low);
+  renderKPIs(computeKPIs(filtered));
+  renderPredict(gw);
+  $('#status') && ($('#status').textContent = `Siap • ${fmt(filtered.length)} baris (Unit: ${FILTER.unit === 'pac' ? 'Pack' : 'TH Stick'})`);
+}
+
+/* ===================== WIRING (panggil dari bootstrap) ===================== */
+function wireEvents() {
+  // Unit toggle
+  $$('input[name="unit"]').forEach(r => r.addEventListener('change', e => {
+    FILTER.unit = e.target.value === 'th' ? 'th' : 'pac';
+    renderAll();
+  }));
+  // Filter actions
+  $('#applyBtn') && $('#applyBtn').addEventListener('click', onApply);
+  $('#resetBtn') && $('#resetBtn').addEventListener('click', onReset);
+  ['regionSel','areaSel','typeSel','brandSel'].forEach(id => { const el = $('#'+id); el && el.addEventListener('change', updateSelInfo); });
+  // Resize charts
+  window.addEventListener('resize', () => { trendChart && trendChart.resize(); devChart && devChart.resize(); scatterChart && scatterChart.resize(); });
+}
+	
 // ====== BOOTSTRAP ======
 document.addEventListener('DOMContentLoaded', async () => {
   const $status = document.getElementById('status') || null;
@@ -516,36 +776,19 @@ if (!window.__TSV_BOOTSTRAPPED__) {
   window.__TSV_BOOTSTRAPPED__ = true;
   document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
 }
-
 async function bootstrap() {
-  const $status = document.getElementById('status') || null;
+  const $status = $('#status') || null;
   try {
     $status && ($status.textContent = 'Memuat Data Penjualan (TXT)…');
-    const data = await loadDataFromTXT();
+    RAW = await loadDataFromTXT();
 
-    // Log diagnosa ringan
-    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-    if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(RAW));
+    if (Array.isArray(RAW)) console.log('[TSV] Contoh 3 baris:', RAW.slice(0,3));
 
-    // Siapkan fallback kalau initDashboard belum ada
-    if (typeof window.initDashboard !== 'function') {
-      console.warn('[APP] initDashboard tidak ditemukan — pakai fallback bawaan.');
-      window.initDashboard = (rows) => {
-        if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
-          // Jalankan pipeline V2 Anda
-          window.RAW = rows;
-          window.initFilters(window.RAW);
-          window.renderAll();
-          $status && ($status.textContent = `Siap • ${rows.length.toLocaleString('id-ID')} baris`);
-        } else {
-          // Fallback minimal: tampilkan jumlah baris agar tidak blank
-          $status && ($status.textContent = `Data siap: ${rows.length.toLocaleString('id-ID')} baris (renderer khusus belum disediakan)`);
-        }
-      };
-    }
-
-    // Panggil renderer (asli atau fallback)
-    window.initDashboard(data);
+    // Siapkan UI & render
+    initFilters(RAW);
+    wireEvents();
+    renderAll();
 
   } catch (err) {
     console.error('[TSV] Error loader:', err);
@@ -1194,6 +1437,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
