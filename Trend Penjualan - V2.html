@@ -771,6 +771,12 @@ async function bootstrap() {
     if (statusEl) statusEl.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.';
   }
 }
+
+// (opsional) Hook error global saat debug
+window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
+window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJECTION]', e.reason));
+
+	
 </script>
 
 	
@@ -1408,6 +1414,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
