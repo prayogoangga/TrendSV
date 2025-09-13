@@ -739,14 +739,23 @@ async function bootstrap() {
     if (statusEl) statusEl.textContent = 'Memuat Data Penjualan (TXT)…';
 
     // 1) Muat & parse data TSV
-    const data = await loadDataFromTXT();
-    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
-    if (Array.isArray(data)) console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+    const data = await loadDataFromTXT().catch(e => {
+      console.error('[TSV] loadDataFromTXT error:', e);
+      throw e;
+    });
 
-    // 2) Simpan global supaya pipeline bisa pakai
+    console.log('[TSV] tipe data:', Object.prototype.toString.call(data));
+    if (!Array.isArray(data)) {
+      console.warn('[TSV] Hasil parse bukan array. Cek header TSV & parser.');
+      if (statusEl) statusEl.textContent = 'Format data tidak sesuai.';
+      return;
+    }
+    console.log('[TSV] Contoh 3 baris:', data.slice(0,3));
+
+    // 2) Simpan global untuk pipeline V2
     window.RAW = data;
 
-    // 3A) Jika Anda pakai Renderer Pack (namespace V2Pack)
+    // 3A) Jika pakai Renderer Pack (V2Pack)
     if (window.V2Pack) {
       V2Pack.initFilters(window.RAW);
       V2Pack.wireEvents();
@@ -755,7 +764,7 @@ async function bootstrap() {
       return;
     }
 
-    // 3B) Jika pakai pipeline V2 klasik (initFilters/renderAll)
+    // 3B) Jika pakai pipeline V2 klasik (initFilters / renderAll)
     if (typeof window.initFilters === 'function' && typeof window.renderAll === 'function') {
       window.initFilters(window.RAW);
       if (typeof window.wireEvents === 'function') window.wireEvents();
@@ -767,10 +776,13 @@ async function bootstrap() {
     }
 
   } catch (err) {
-    console.error('[TSV] Error loader:', err);
-    if (statusEl) statusEl.textContent = 'Gagal memuat data. Pastikan file data ada & lihat konsol.';
+    console.error('[BOOTSTRAP] Gagal:', err);
+    if (statusEl) statusEl.textContent = 'Gagal memuat data. Periksa Console.';
   }
 }
+
+// (opsional) expose untuk manual re-run di console
+window.__bootstrap = bootstrap;
 
 // (opsional) Hook error global saat debug
 window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.error));
@@ -1414,6 +1426,7 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
 
 
