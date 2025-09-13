@@ -378,9 +378,16 @@ const GH_SOURCE = {
   file:   'Data Penjualan.xlsx'  // nama file Excel di root yg sama dgn HTML
 };
 
-/* ====== UTIL ====== */
-const cssVal = (name, fallback='') =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+// Helper membaca CSS variable, anti-duplicate (satu kali saja)
+window.cssVal ??= function(name, fallback = '') {
+  try {
+    return getComputedStyle(document.documentElement)
+             .getPropertyValue(name)
+             .trim() || fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
 
 /* Deteksi environment */
 function isGhPagesHost(){
@@ -530,8 +537,6 @@ window.addEventListener('load', autoLoadDefaultExcel);
   };
 
   // ============ HELPERS ============
-  const cssVal = (name, fallback='rgba(0,0,0,0)') =>
-    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 const layoutBase = () => ({
   margin:{t:10,r:10,l:40,b:40},
   paper_bgcolor:'rgba(0,0,0,0)',
@@ -1142,4 +1147,5 @@ function renderTicker(byW){
 
 </body>
 </html>
+
 
