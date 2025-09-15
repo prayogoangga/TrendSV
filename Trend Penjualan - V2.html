@@ -1243,9 +1243,47 @@ window.updateAll = function(){
   create by: EJV Team
 </footer>
 
+<!-- Tempel di akhir <body> (sementara untuk debugging) -->
+<script>
+(function() {
+  function log(...args){ console.log('[FILTER-DBG]', ...args); }
+  function ready(fn){
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn);
+  }
+
+  ready(() => {
+    const el = document.getElementById('filterProduk')
+           || document.querySelector('#filterProduk,[name="filterProduk"]');
+    log('Elemen filter ditemukan?', !!el, el);
+
+    // Asumsikan data global berada di window.data / window.rawData
+    const getData = () => window.data || window.rawData || [];
+
+    el && el.addEventListener('change', (e) => {
+      const val = String(e.target?.value ?? '').trim();
+      const all = getData();
+      log('CHANGE -> value:', JSON.stringify(val), 'dataLength(before):', all.length);
+
+      // Ganti 'Produk' dengan nama kolom sebenarnya
+      const filtered = all.filter(d => String(d.Produk ?? d.produk ?? d.PRODUK).trim() === val);
+      log('dataLength(after):', filtered.length);
+
+      // Contoh untuk Chart.js — sesuaikan dengan punyamu
+      if (window.chart) {
+        window.chart.data.labels = filtered.map(d => d.Tanggal);
+        window.chart.data.datasets[0].data = filtered.map(d => +d.Qty || 0);
+        window.chart.update();
+        log('Chart updated');
+      }
+    });
+  });
+})();
+</script>
 
 </body>
 </html>
+
 
 
 
