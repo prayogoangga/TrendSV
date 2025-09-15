@@ -1253,27 +1253,28 @@ window.updateAll = function(){
   }
 
   ready(() => {
-    const el = document.getElementById('filterProduk')
-           || document.querySelector('#filterProduk,[name="filterProduk"]');
+    const el = document.getElementById('filterBrand')
+            || document.querySelector('#filterBrand,[name="filterBrand"]');
     log('Elemen filter ditemukan?', !!el, el);
 
-    // Asumsikan data global berada di window.data / window.rawData
-    const getData = () => window.data || window.rawData || [];
+    // Asumsikan data excel yang sudah diparse disimpan global:
+    // window.rows atau window.data
+    const getData = () => window.rows || window.data || [];
 
     el && el.addEventListener('change', (e) => {
       const val = String(e.target?.value ?? '').trim();
       const all = getData();
-      log('CHANGE -> value:', JSON.stringify(val), 'dataLength(before):', all.length);
+      log('CHANGE -> value:', JSON.stringify(val), 'rows(before):', all.length);
 
-      // Ganti 'Produk' dengan nama kolom sebenarnya
-      const filtered = all.filter(d => String(d.Produk ?? d.produk ?? d.PRODUK).trim() === val);
-      log('dataLength(after):', filtered.length);
+      // Ganti 'Brand' dengan nama kolom sebenarnya
+      const filtered = val ? all.filter(d => String(d.Brand ?? d.brand ?? d.BRAND).trim() === val) : all;
+      log('rows(after):', filtered.length);
 
-      // Contoh untuk Chart.js — sesuaikan dengan punyamu
+      // Contoh untuk Chart.js
       if (window.chart) {
-        window.chart.data.labels = filtered.map(d => d.Tanggal);
-        window.chart.data.datasets[0].data = filtered.map(d => +d.Qty || 0);
-        window.chart.update();
+        chart.data.labels = filtered.map(d => d.Week);
+        chart.data.datasets[0].data = filtered.map(d => +d.SV || 0);
+        chart.update();
         log('Chart updated');
       }
     });
@@ -1283,6 +1284,7 @@ window.updateAll = function(){
 
 </body>
 </html>
+
 
 
 
